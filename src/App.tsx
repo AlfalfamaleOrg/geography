@@ -77,7 +77,7 @@ export default function App() {
   const [multiplier, setMultiplier] = useState(START_MULTIPLIER)
   const [highScores, setHighScores] = useState<HighScore[]>(() => loadHighScores())
   const [labelsHidden, setLabelsHidden] = useState(false)
-  const [currentZoom, setCurrentZoom] = useState(1)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [startedAt, setStartedAt] = useState<number | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const [lastDuration, setLastDuration] = useState<number | null>(null)
@@ -256,82 +256,97 @@ export default function App() {
         labelsHidden ? ' app--labels-hidden' : ''
       }`}
     >
-      <header className="topbar">
+      <header className={`topbar${menuOpen ? ' topbar--menu-open' : ''}`}>
         <h1>Geografie test</h1>
-        <nav className="modes" aria-label="Spelmodus">
-          <select
-            className="mode-select"
-            value={mode.id}
-            onChange={(e) => {
-              const next = modes.find((m) => m.id === e.target.value)
-              if (next) handleSelectMode(next)
-            }}
-          >
-            <optgroup label="Continenten">
-              {modes
-                .filter((m) => m.category === 'continent')
-                .map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
-            </optgroup>
-            <optgroup label="Landen / regio's">
-              {modes
-                .filter((m) => m.category === 'region')
-                .map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
-            </optgroup>
-          </select>
-        </nav>
-        <div className="topbar__meta">
-          {phase === 'playing' && (
-            <>
-              <span className="score">
-                {done} / {total}
-              </span>
-              <span
-                className={`score score--points${score < 0 ? ' score--negative' : ''}`}
-                title="Score: goed land voegt teller toe"
-              >
-                score {score}
-              </span>
-              <span
-                className="score score--multiplier"
-                title="Teller: +1 goed, -1 fout, -1 zoom-hulp, reset bij antwoord"
-              >
-                +{multiplier}
-              </span>
-              <span className="score score--timer" title="Speeltijd">
-                {formatDuration(elapsedSec)}
-              </span>
-              <button
-                type="button"
-                onClick={() => setLabelsHidden((v) => !v)}
-                className="reset"
-                title="Verberg/toon namen op geplaatste landen"
-              >
-                {labelsHidden ? 'Toon namen' : 'Verberg namen'}
-              </button>
-              <button type="button" onClick={handleReset} className="reset">
-                Opnieuw
-              </button>
-              <button
-                type="button"
-                onClick={handleStop}
-                className="reset reset--stop"
-                title="Stop het spel nu en sla de huidige score op"
-              >
-                Stop
-              </button>
-            </>
-          )}
-          {phase !== 'playing' && playerName && (
-            <span className="score">speler: {playerName}</span>
-          )}
+        {phase === 'playing' && (
+          <div className="topbar__inline">
+            <span className="score">
+              {done} / {total}
+            </span>
+            <span
+              className={`score score--points${score < 0 ? ' score--negative' : ''}`}
+              title="Score: goed land voegt teller toe"
+            >
+              score {score}
+            </span>
+            <span className="score score--timer" title="Speeltijd">
+              {formatDuration(elapsedSec)}
+            </span>
+          </div>
+        )}
+        <button
+          type="button"
+          className="hamburger"
+          aria-label="Menu"
+          aria-expanded={menuOpen}
+          onClick={() => setMenuOpen((v) => !v)}
+        >
+          <span aria-hidden="true">☰</span>
+        </button>
+        <div className="topbar__menu" onClick={() => setMenuOpen(false)}>
+          <nav className="modes" aria-label="Spelmodus">
+            <select
+              className="mode-select"
+              value={mode.id}
+              onChange={(e) => {
+                const next = modes.find((m) => m.id === e.target.value)
+                if (next) handleSelectMode(next)
+              }}
+            >
+              <optgroup label="Continenten">
+                {modes
+                  .filter((m) => m.category === 'continent')
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                    </option>
+                  ))}
+              </optgroup>
+              <optgroup label="Landen / regio's">
+                {modes
+                  .filter((m) => m.category === 'region')
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                    </option>
+                  ))}
+              </optgroup>
+            </select>
+          </nav>
+          <div className="topbar__meta">
+            {phase === 'playing' && (
+              <>
+                <span
+                  className="score score--multiplier"
+                  title="Teller: +1 goed, -1 fout, -1 zoom-hulp, reset bij antwoord"
+                >
+                  +{multiplier}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setLabelsHidden((v) => !v)}
+                  className="reset"
+                  title="Verberg/toon namen op geplaatste landen"
+                >
+                  {labelsHidden ? 'Toon namen' : 'Verberg namen'}
+                </button>
+                <button type="button" onClick={handleReset} className="reset">
+                  Opnieuw
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStop}
+                  className="reset reset--stop"
+                  title="Stop het spel nu en sla de huidige score op"
+                >
+                  Stop
+                </button>
+              </>
+            )}
+            {phase !== 'playing' && playerName && (
+              <span className="score">speler: {playerName}</span>
+            )}
+          </div>
         </div>
       </header>
       {phase === 'start' && (
@@ -365,14 +380,8 @@ export default function App() {
       {phase === 'playing' && (
         <main className="layout">
           <div className="map-wrap">
-            <MapView
-              ref={mapRef}
-              mode={mode}
-              placed={placed}
-              onZoomChange={setCurrentZoom}
-            />
+            <MapView ref={mapRef} mode={mode} placed={placed} />
             <p className="hint">{hint}</p>
-            <p className="zoom-readout">zoom {currentZoom.toFixed(1)}×</p>
           </div>
           <LabelTray
             labels={remaining}

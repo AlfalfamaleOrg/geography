@@ -46,13 +46,19 @@ export default function LabelTray({
       <div
         className="help-zone"
         data-help-target="true"
-        aria-label="Hulp: sleep een land hier voor zoom; sleep dit naar een land op de kaart voor het antwoord"
-        onPointerDown={handlePointerDown(HELP_DRAG_LABEL)}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
+        aria-label="Hulp-zone: sleep een land hier, of pak de handle om het antwoord te onthullen"
       >
         <strong>Hulp</strong>
+        <span
+          className="label__handle help-zone__handle"
+          aria-label="Sleep om antwoord te onthullen"
+          onPointerDown={handlePointerDown(HELP_DRAG_LABEL)}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        >
+          ≡
+        </span>
       </div>
       <div className="tray__inner">
         {labels.map((label) => {
@@ -70,16 +76,19 @@ export default function LabelTray({
             .filter(Boolean)
             .join(' ')
           return (
-            <div
-              key={label.iso}
-              className={cls}
-              onPointerDown={handlePointerDown(label)}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
-            >
-              {label.name}
+            <div key={label.iso} className={cls}>
+              <span className="label__text">{label.name}</span>
               {isTop && <span className="label__bonus">+2</span>}
+              <span
+                className="label__handle"
+                aria-label="Sleep om te plaatsen"
+                onPointerDown={handlePointerDown(label)}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
+              >
+                ≡
+              </span>
             </div>
           )
         })}
