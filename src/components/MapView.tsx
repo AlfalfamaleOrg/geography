@@ -16,6 +16,7 @@ import {
   type ZoomBehavior,
   type ZoomTransform,
 } from 'd3-zoom'
+import type { Feature, Geometry } from 'geojson'
 import { countryFeatures, type GameMode } from '../data/modes'
 
 export type MapViewHandle = {
@@ -122,7 +123,19 @@ const MapView = forwardRef<MapViewHandle, Props>(function MapView(
     return features.map((f) => {
       const iso = padIso(f.id)
       const d = pathGen(f) ?? ''
-      const [cx, cy] = pathGen.centroid(f)
+      let centroidTarget: Feature<Geometry> | { type: 'Polygon'; coordinates: number[][][] } = f
+      if (f.geometry.type === 'MultiPolygon') {
+        let bestArea = -Infinity
+        for (const polyCoords of f.geometry.coordinates) {
+          const sub = { type: 'Polygon' as const, coordinates: polyCoords }
+          const a = Math.abs(pathGen.area({ type: 'Feature', properties: {}, geometry: sub }))
+          if (a > bestArea) {
+            bestArea = a
+            centroidTarget = sub
+          }
+        }
+      }
+      const [cx, cy] = pathGen.centroid(centroidTarget as never)
       return { iso, d, cx, cy, hasCentroid: Number.isFinite(cx) && Number.isFinite(cy) }
     })
   }, [features, pathGen, rotation, scale])
