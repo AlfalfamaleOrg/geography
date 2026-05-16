@@ -12,7 +12,7 @@ type Props = {
 }
 
 const computeOffsetY = (pointerType: string): number =>
-  pointerType === 'touch' ? -44 : 0
+  pointerType === 'touch' ? -88 : 0
 
 export default function LabelTray({
   labels,

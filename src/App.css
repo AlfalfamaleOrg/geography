@@ -18,7 +18,7 @@ body,
 .app {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100dvh;
 }
 
 .topbar {
@@ -258,6 +258,7 @@ body,
   flex-direction: column;
   gap: 0.35rem;
   padding: 0.75rem;
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0.75rem));
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -633,7 +634,7 @@ body,
   .tray {
     border-left: none;
     border-top: 1px solid #e2e8f0;
-    max-height: 40vh;
+    max-height: 40dvh;
   }
 
   .topbar__title--main {
