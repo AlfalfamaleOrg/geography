@@ -1,0 +1,666 @@
+import { feature } from 'topojson-client'
+import { geoIdentity, geoMercator, geoPath, type GeoProjection } from 'd3-geo'
+import worldData from 'world-atlas/countries-50m.json'
+import usaStatesData from 'us-atlas/states-albers-10m.json'
+import countries from 'i18n-iso-countries'
+import nlLocale from 'i18n-iso-countries/langs/nl.json'
+import {
+  countries as countriesData,
+  type ICountry,
+  type TContinentCode,
+  type TCountryCode,
+} from 'countries-list'
+import nlProvincesTopo from './nl-provinces.topojson.json'
+import franceRegionsData from './france-regions.json'
+import spainCommunitiesData from './spain-communities.json'
+import chinaProvincesData from './china-provinces.json'
+import germanyStatesData from './germany-states.json'
+import belgiumProvincesData from './belgium-provinces.json'
+import type { Feature, FeatureCollection, Geometry } from 'geojson'
+import type { GeoSphere } from 'd3-geo'
+import type { Topology } from 'topojson-specification'
+
+countries.registerLocale(nlLocale)
+
+export type Country = {
+  iso: string
+  name: string
+}
+
+export const HELP_DRAG_LABEL: Country = { iso: '__help__', name: 'Hulp' }
+
+export type Interaction = 'pan' | 'rotate'
+
+export type Category = 'continent' | 'region'
+
+export type GameMode = {
+  id: string
+  label: string
+  category: Category
+  countries: Country[]
+  markers: Record<string, [number, number]>
+  createProjection: () => GeoProjection
+  fitBbox?: Feature<Geometry> | GeoSphere
+  excludeFromMap: Set<string>
+  interaction: Interaction
+  sourceFeatures?: FeatureCollection<Geometry>
+}
+
+const padIso = (id: unknown): string => {
+  const s = String(id)
+  return /^\d+$/.test(s) ? s.padStart(3, '0') : s
+}
+
+const topo = worldData as unknown as Topology
+const rawFc = feature(topo, topo.objects.countries) as unknown as FeatureCollection<Geometry>
+
+const cleanerProj = geoMercator().fitSize(
+  [1000, 760],
+  {
+    type: 'Polygon',
+    coordinates: [
+      [
+        [-180, -60],
+        [180, -60],
+        [180, 84],
+        [-180, 84],
+        [-180, -60],
+      ],
+    ],
+  } as Feature<Geometry>['geometry'],
+)
+const cleanerPath = geoPath(cleanerProj)
+
+const isCorruptPolygon = (rings: number[][][]): boolean => {
+  const outer = rings[0]
+  if (!outer || outer.length < 4) return false
+  let minLon = Infinity
+  let maxLon = -Infinity
+  let minLat = Infinity
+  let maxLat = -Infinity
+  for (const [lon, lat] of outer) {
+    if (lon < minLon) minLon = lon
+    if (lon > maxLon) maxLon = lon
+    if (lat < minLat) minLat = lat
+    if (lat > maxLat) maxLat = lat
+  }
+  if (maxLon - minLon >= 1 || maxLat - minLat >= 1) return false
+  const b = cleanerPath.bounds({ type: 'Polygon', coordinates: rings })
+  const projW = b[1][0] - b[0][0]
+  const projH = b[1][1] - b[0][1]
+  return projW >= 100 || projH >= 100
+}
+
+const scaleRing = (ring: number[][], cx: number, cy: number, factor: number): number[][] =>
+  ring.map(([x, y]) => [cx + (x - cx) * factor, cy + (y - cy) * factor])
+
+const scaleRings = (rings: number[][][], factor: number): number[][][] => {
+  const outer = rings[0]
+  let sumX = 0
+  let sumY = 0
+  for (const [x, y] of outer) {
+    sumX += x
+    sumY += y
+  }
+  const cx = sumX / outer.length
+  const cy = sumY / outer.length
+  return rings.map((r) => scaleRing(r, cx, cy, factor))
+}
+
+const VATICAN_SCALE = 3
+
+const cleanedFeatures = rawFc.features
+  .map((f) => {
+    const name = (f.properties as { name?: string } | null)?.name
+    if (name === 'Kosovo' && (f.id == null || String(f.id) === 'undefined')) {
+      f = { ...f, id: 'XK' }
+    }
+    let geom = f.geometry
+    if (geom.type === 'MultiPolygon') {
+      const good = geom.coordinates.filter((p) => !isCorruptPolygon(p))
+      if (good.length === 0) return null
+      geom = { ...geom, coordinates: good }
+    } else if (geom.type === 'Polygon') {
+      if (isCorruptPolygon(geom.coordinates)) return null
+    }
+    if (padIso(f.id) === '336') {
+      if (geom.type === 'Polygon') {
+        geom = { ...geom, coordinates: scaleRings(geom.coordinates, VATICAN_SCALE) }
+      } else if (geom.type === 'MultiPolygon') {
+        geom = {
+          ...geom,
+          coordinates: geom.coordinates.map((p) => scaleRings(p, VATICAN_SCALE)),
+        }
+      }
+    }
+    return { ...f, geometry: geom }
+  })
+  .filter((f): f is typeof rawFc.features[number] => f !== null)
+
+const roughBboxArea = (geom: Geometry): number => {
+  let minLon = Infinity
+  let maxLon = -Infinity
+  let minLat = Infinity
+  let maxLat = -Infinity
+  const visit = (rings: number[][][]) => {
+    for (const ring of rings) {
+      for (const [lon, lat] of ring) {
+        if (lon < minLon) minLon = lon
+        if (lon > maxLon) maxLon = lon
+        if (lat < minLat) minLat = lat
+        if (lat > maxLat) maxLat = lat
+      }
+    }
+  }
+  if (geom.type === 'Polygon') visit(geom.coordinates)
+  else if (geom.type === 'MultiPolygon') for (const p of geom.coordinates) visit(p)
+  if (!Number.isFinite(minLon)) return 0
+  return (maxLon - minLon) * (maxLat - minLat)
+}
+
+cleanedFeatures.sort((a, b) => roughBboxArea(b.geometry) - roughBboxArea(a.geometry))
+
+const fc: FeatureCollection<Geometry> = { type: 'FeatureCollection', features: cleanedFeatures }
+
+export const countryFeatures: FeatureCollection<Geometry> = fc
+
+const nlAlias = (iso: string): string | null => {
+  const a2 = countries.numericToAlpha2(iso)
+  if (!a2) return null
+  return countries.getName(a2, 'nl', { select: 'alias' }) ?? countries.getName(a2, 'nl') ?? null
+}
+
+const curatedEuropeIsos: string[] = [
+  '008', '020', '040', '056', '070', '100', '112', '191', '196', '203',
+  '208', '233', '246', '250', '276', '300', '336', '348', '352', '372',
+  '380', '428', '438', '440', '442', '470', '492', '498', '499', '528',
+  '578', '616', '620', '642', '674', '688', '703', '705', '724', '752',
+  '756', '792', '804', '807', '826', 'XK',
+]
+
+const nameOverrides: Record<string, string> = {
+  '826': 'Verenigd Koninkrijk',
+  '528': 'Nederland',
+  '276': 'Duitsland',
+  '250': 'Frankrijk',
+  '724': 'Spanje',
+  '380': 'Italië',
+  '300': 'Griekenland',
+  '703': 'Slowakije',
+  '203': 'Tsjechië',
+  '643': 'Rusland',
+  '840': 'Verenigde Staten',
+  '156': 'China',
+  '484': 'Mexico',
+  '076': 'Brazilië',
+  '032': 'Argentinië',
+  '356': 'India',
+  '392': 'Japan',
+  '764': 'Thailand',
+  '410': 'Zuid-Korea',
+  '408': 'Noord-Korea',
+  '124': 'Canada',
+  '036': 'Australië',
+  '554': 'Nieuw-Zeeland',
+  '710': 'Zuid-Afrika',
+  '818': 'Egypte',
+  '566': 'Nigeria',
+  '404': 'Kenia',
+  '231': 'Ethiopië',
+  XK: 'Kosovo',
+}
+
+const buildCountry = (iso: string): Country | null => {
+  const name = nameOverrides[iso] ?? nlAlias(iso)
+  if (!name) return null
+  return { iso, name }
+}
+
+const europeCountries: Country[] = curatedEuropeIsos
+  .map(buildCountry)
+  .filter((c): c is Country => c !== null)
+  .sort((a, b) => a.name.localeCompare(b.name, 'nl'))
+
+const featureIsos = Array.from(
+  new Set(
+    fc.features
+      .map((f) => padIso(f.id))
+      .filter((iso) => iso !== 'undefined' && iso !== '-99'),
+  ),
+)
+
+const worldExclude = new Set<string>(['010'])
+
+const worldCountries: Country[] = featureIsos
+  .filter((iso) => !worldExclude.has(iso))
+  .map((iso) => ({ iso, name: nameOverrides[iso] ?? nlAlias(iso) ?? '' }))
+  .filter((c) => c.name !== '')
+  .sort((a, b) => a.name.localeCompare(b.name, 'nl'))
+
+const continentCountries = (cont: TContinentCode): Country[] => {
+  const list: Country[] = []
+  for (const entry of Object.entries(countriesData) as [TCountryCode, ICountry][]) {
+    const [a2, info] = entry
+    if (info.continent !== cont) continue
+    const num = countries.alpha2ToNumeric(a2)
+    if (!num) continue
+    if (!featureIsos.includes(num)) continue
+    const name = nameOverrides[num] ?? nlAlias(num)
+    if (!name) continue
+    list.push({ iso: num, name })
+  }
+  return list.sort((a, b) => a.name.localeCompare(b.name, 'nl'))
+}
+
+const polygonBbox = (
+  minLon: number,
+  minLat: number,
+  maxLon: number,
+  maxLat: number,
+): Feature<Geometry> => ({
+  type: 'Feature',
+  properties: {},
+  geometry: {
+    type: 'Polygon',
+    coordinates: [
+      [
+        [minLon, minLat],
+        [maxLon, minLat],
+        [maxLon, maxLat],
+        [minLon, maxLat],
+        [minLon, minLat],
+      ],
+    ],
+  },
+})
+
+export const seasMode: GameMode = {
+  id: 'seas',
+  label: 'Zeeën & oceanen',
+  category: 'continent',
+  countries: [
+    { iso: 'sea-atlantic', name: 'Atlantische Oceaan' },
+    { iso: 'sea-pacific', name: 'Stille Oceaan' },
+    { iso: 'sea-indian', name: 'Indische Oceaan' },
+    { iso: 'sea-arctic', name: 'Noordelijke IJszee' },
+    { iso: 'sea-southern', name: 'Zuidelijke Oceaan' },
+    { iso: 'sea-mediterranean', name: 'Middellandse Zee' },
+    { iso: 'sea-north', name: 'Noordzee' },
+    { iso: 'sea-baltic', name: 'Oostzee' },
+    { iso: 'sea-black', name: 'Zwarte Zee' },
+    { iso: 'sea-red', name: 'Rode Zee' },
+    { iso: 'sea-caspian', name: 'Kaspische Zee' },
+    { iso: 'sea-arabian', name: 'Arabische Zee' },
+    { iso: 'sea-southchina', name: 'Zuid-Chinese Zee' },
+    { iso: 'sea-eastchina', name: 'Oost-Chinese Zee' },
+    { iso: 'sea-japan', name: 'Japanse Zee' },
+    { iso: 'sea-bengal', name: 'Golf van Bengalen' },
+    { iso: 'sea-caribbean', name: 'Caribische Zee' },
+    { iso: 'sea-mexico', name: 'Golf van Mexico' },
+    { iso: 'sea-hudson', name: 'Hudsonbaai' },
+    { iso: 'sea-bering', name: 'Beringzee' },
+    { iso: 'sea-tasman', name: 'Tasmanzee' },
+    { iso: 'sea-coral', name: 'Koraalzee' },
+  ].sort((a, b) => a.name.localeCompare(b.name, 'nl')),
+  markers: {
+    'sea-atlantic': [-30, 15],
+    'sea-pacific': [-150, 5],
+    'sea-indian': [75, -20],
+    'sea-arctic': [0, 80],
+    'sea-southern': [0, -65],
+    'sea-mediterranean': [17, 37],
+    'sea-north': [3, 56],
+    'sea-baltic': [20, 58],
+    'sea-black': [35, 43],
+    'sea-red': [38, 22],
+    'sea-caspian': [50, 41],
+    'sea-arabian': [65, 15],
+    'sea-southchina': [115, 15],
+    'sea-eastchina': [125, 30],
+    'sea-japan': [135, 40],
+    'sea-bengal': [88, 15],
+    'sea-caribbean': [-75, 15],
+    'sea-mexico': [-90, 25],
+    'sea-hudson': [-85, 60],
+    'sea-bering': [-175, 60],
+    'sea-tasman': [160, -40],
+    'sea-coral': [155, -15],
+  },
+  createProjection: () => geoMercator(),
+  excludeFromMap: new Set(),
+  interaction: 'pan',
+}
+
+export const worldMode: GameMode = {
+  id: 'world',
+  label: 'Wereld',
+  category: 'continent',
+  countries: worldCountries,
+  markers: {},
+  createProjection: () => geoMercator(),
+  excludeFromMap: worldExclude,
+  interaction: 'pan',
+}
+
+export const europeMode: GameMode = {
+  id: 'europe',
+  label: 'Europa',
+  category: 'continent',
+  countries: europeCountries,
+  markers: {},
+  createProjection: () => geoMercator(),
+  excludeFromMap: new Set(),
+  interaction: 'pan',
+}
+
+export const africaMode: GameMode = {
+  id: 'africa',
+  label: 'Afrika',
+  category: 'continent',
+  countries: continentCountries('AF'),
+  markers: {},
+  createProjection: () => geoMercator(),
+  excludeFromMap: new Set(),
+  interaction: 'pan',
+}
+
+export const asiaMode: GameMode = {
+  id: 'asia',
+  label: 'Azië',
+  category: 'continent',
+  countries: continentCountries('AS'),
+  markers: {},
+  createProjection: () => geoMercator(),
+  excludeFromMap: new Set(),
+  interaction: 'pan',
+}
+
+export const northAmericaMode: GameMode = {
+  id: 'north-america',
+  label: 'Noord-Amerika',
+  category: 'continent',
+  countries: continentCountries('NA'),
+  markers: {},
+  createProjection: () => geoMercator(),
+  excludeFromMap: new Set(),
+  interaction: 'pan',
+}
+
+export const southAmericaMode: GameMode = {
+  id: 'south-america',
+  label: 'Zuid-Amerika',
+  category: 'continent',
+  countries: continentCountries('SA'),
+  markers: {},
+  createProjection: () => geoMercator(),
+  excludeFromMap: new Set(),
+  interaction: 'pan',
+}
+
+export const oceaniaMode: GameMode = {
+  id: 'oceania',
+  label: 'Oceanië',
+  category: 'continent',
+  countries: continentCountries('OC'),
+  markers: {},
+  createProjection: () => geoMercator(),
+  excludeFromMap: new Set(),
+  interaction: 'pan',
+}
+
+const buildRegionalFc = (
+  raw: { features: { id?: unknown; properties: Record<string, unknown>; geometry: Geometry }[] },
+  getId: (f: { id?: unknown; properties: Record<string, unknown> }) => string,
+): FeatureCollection<Geometry> => ({
+  type: 'FeatureCollection',
+  features: raw.features.map((f) => ({
+    type: 'Feature',
+    id: getId(f),
+    properties: f.properties,
+    geometry: f.geometry,
+  })),
+})
+
+const countriesFromFc = (
+  fc: FeatureCollection<Geometry>,
+  getName: (f: Feature<Geometry>) => string,
+  overrides: Record<string, string> = {},
+): Country[] =>
+  fc.features
+    .map((f) => {
+      const iso = String(f.id)
+      const name = overrides[iso] ?? getName(f)
+      return { iso, name }
+    })
+    .filter((c) => c.name)
+    .sort((a, b) => a.name.localeCompare(b.name, 'nl'))
+
+const nlTopo = nlProvincesTopo as unknown as Topology
+const nlObjectKey = Object.keys(nlTopo.objects)[0]
+const nlProvinceFc = feature(
+  nlTopo,
+  nlTopo.objects[nlObjectKey],
+) as unknown as FeatureCollection<Geometry>
+
+const nlProvinceCountries = countriesFromFc(
+  nlProvinceFc,
+  (f) => (f.properties as { statnaam?: string } | null)?.statnaam ?? String(f.id),
+)
+
+export const nlProvincesMode: GameMode = {
+  id: 'nl-provinces',
+  label: 'Nederland — provincies',
+  category: 'region',
+  countries: nlProvinceCountries,
+  markers: {},
+  createProjection: () => geoMercator(),
+  excludeFromMap: new Set(),
+  interaction: 'pan',
+  sourceFeatures: nlProvinceFc,
+}
+
+const beFc = buildRegionalFc(
+  belgiumProvincesData as unknown as Parameters<typeof buildRegionalFc>[0],
+  (f) => String((f.properties as Record<string, unknown>).NUTS_ID),
+)
+const beNameOverrides: Record<string, string> = {
+  BE10: 'Brussel',
+  BE21: 'Antwerpen',
+  BE22: 'Limburg',
+  BE23: 'Oost-Vlaanderen',
+  BE24: 'Vlaams-Brabant',
+  BE25: 'West-Vlaanderen',
+  BE31: 'Waals-Brabant',
+  BE32: 'Henegouwen',
+  BE33: 'Luik',
+  BE34: 'Luxemburg',
+  BE35: 'Namen',
+}
+const beProvinceCountries = countriesFromFc(
+  beFc,
+  (f) => {
+    const p = f.properties as Record<string, unknown>
+    return String(p.NUTS_NAME ?? p.NAME_LATN ?? f.id)
+  },
+  beNameOverrides,
+)
+
+export const belgiumProvincesMode: GameMode = {
+  id: 'be-provinces',
+  label: 'België — provincies',
+  category: 'region',
+  countries: beProvinceCountries,
+  markers: {},
+  createProjection: () => geoMercator(),
+  excludeFromMap: new Set(),
+  interaction: 'pan',
+  sourceFeatures: beFc,
+}
+
+const deFc = buildRegionalFc(
+  germanyStatesData as unknown as Parameters<typeof buildRegionalFc>[0],
+  (f) => String((f.properties as Record<string, unknown>).id ?? f.id),
+)
+const deNameOverrides: Record<string, string> = {
+  'DE-BW': 'Baden-Württemberg',
+  'DE-BY': 'Beieren',
+  'DE-BE': 'Berlijn',
+  'DE-BB': 'Brandenburg',
+  'DE-HB': 'Bremen',
+  'DE-HH': 'Hamburg',
+  'DE-HE': 'Hessen',
+  'DE-MV': 'Mecklenburg-Voor-Pommeren',
+  'DE-NI': 'Nedersaksen',
+  'DE-NW': 'Noordrijn-Westfalen',
+  'DE-RP': 'Rijnland-Palts',
+  'DE-SL': 'Saarland',
+  'DE-SN': 'Saksen',
+  'DE-ST': 'Saksen-Anhalt',
+  'DE-SH': 'Sleeswijk-Holstein',
+  'DE-TH': 'Thüringen',
+}
+const deStatesCountries = countriesFromFc(
+  deFc,
+  (f) => String((f.properties as Record<string, unknown>).name ?? f.id),
+  deNameOverrides,
+)
+
+export const germanyStatesMode: GameMode = {
+  id: 'de-states',
+  label: 'Duitsland — deelstaten',
+  category: 'region',
+  countries: deStatesCountries,
+  markers: {},
+  createProjection: () => geoMercator(),
+  excludeFromMap: new Set(),
+  interaction: 'pan',
+  sourceFeatures: deFc,
+}
+
+const frFc = buildRegionalFc(
+  franceRegionsData as unknown as Parameters<typeof buildRegionalFc>[0],
+  (f) => `fr-${(f.properties as Record<string, unknown>).cartodb_id}`,
+)
+const frNameOverrides: Record<string, string> = {
+  'fr-8336': 'Corsica',
+  'fr-8385': 'Elzas',
+  'fr-8386': 'Lotharingen',
+}
+const frRegionsCountries = countriesFromFc(
+  frFc,
+  (f) => String((f.properties as Record<string, unknown>).name ?? f.id),
+  frNameOverrides,
+)
+
+export const franceRegionsMode: GameMode = {
+  id: 'fr-regions',
+  label: 'Frankrijk — regio’s',
+  category: 'region',
+  countries: frRegionsCountries,
+  markers: {},
+  createProjection: () => geoMercator(),
+  excludeFromMap: new Set(),
+  interaction: 'pan',
+  sourceFeatures: frFc,
+}
+
+const esFc = buildRegionalFc(
+  spainCommunitiesData as unknown as Parameters<typeof buildRegionalFc>[0],
+  (f) => `es-${(f.properties as Record<string, unknown>).cartodb_id}`,
+)
+const esCommunitiesCountries = countriesFromFc(
+  esFc,
+  (f) => String((f.properties as Record<string, unknown>).name ?? f.id),
+)
+
+export const spainCommunitiesMode: GameMode = {
+  id: 'es-communities',
+  label: 'Spanje — regio’s',
+  category: 'region',
+  countries: esCommunitiesCountries,
+  markers: {},
+  createProjection: () => geoMercator(),
+  excludeFromMap: new Set(),
+  interaction: 'pan',
+  sourceFeatures: esFc,
+}
+
+const cnFc = buildRegionalFc(
+  chinaProvincesData as unknown as Parameters<typeof buildRegionalFc>[0],
+  (f) => `cn-${(f.properties as Record<string, unknown>).cartodb_id}`,
+)
+const cnProvincesCountries = countriesFromFc(
+  cnFc,
+  (f) => String((f.properties as Record<string, unknown>).name ?? f.id),
+)
+
+export const chinaProvincesMode: GameMode = {
+  id: 'cn-provinces',
+  label: 'China — provincies',
+  category: 'region',
+  countries: cnProvincesCountries,
+  markers: {},
+  createProjection: () => geoMercator(),
+  excludeFromMap: new Set(),
+  interaction: 'pan',
+  sourceFeatures: cnFc,
+}
+
+const usaTopo = usaStatesData as unknown as Topology
+const usaRawFc = feature(
+  usaTopo,
+  usaTopo.objects.states,
+) as unknown as FeatureCollection<Geometry>
+const usaFc: FeatureCollection<Geometry> = {
+  type: 'FeatureCollection',
+  features: usaRawFc.features
+    .filter((f) => String(f.id) !== '11')
+    .map((f) => ({ ...f, id: String(f.id).padStart(3, '0') })),
+}
+const usaNameOverrides: Record<string, string> = {
+  '004': 'Arizona',
+  '005': 'Arkansas',
+  '006': 'Californië',
+  '008': 'Colorado',
+  '037': 'Noord-Carolina',
+  '038': 'Noord-Dakota',
+  '045': 'Zuid-Carolina',
+  '046': 'Zuid-Dakota',
+  '054': 'West Virginia',
+  '035': 'Nieuw-Mexico',
+}
+const usaStatesCountries = countriesFromFc(
+  usaFc,
+  (f) => String((f.properties as Record<string, unknown>).name ?? f.id),
+  usaNameOverrides,
+)
+
+export const usaStatesMode: GameMode = {
+  id: 'usa-states',
+  label: 'VS — staten',
+  category: 'region',
+  countries: usaStatesCountries,
+  markers: {},
+  createProjection: () => geoIdentity() as unknown as GeoProjection,
+  excludeFromMap: new Set(),
+  interaction: 'pan',
+  sourceFeatures: usaFc,
+}
+
+export const modes: GameMode[] = [
+  worldMode,
+  europeMode,
+  africaMode,
+  asiaMode,
+  northAmericaMode,
+  southAmericaMode,
+  oceaniaMode,
+  seasMode,
+  nlProvincesMode,
+  belgiumProvincesMode,
+  germanyStatesMode,
+  franceRegionsMode,
+  spainCommunitiesMode,
+  usaStatesMode,
+  chinaProvincesMode,
+]
