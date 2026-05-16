@@ -204,7 +204,19 @@ const MapView = forwardRef<MapViewHandle, Props>(function MapView(
       const locateCentroid = (iso: string): [number, number] | null => {
         const f = features.find((feat) => padIso(feat.id) === iso)
         if (f) {
-          const [cx, cy] = pathGen.centroid(f)
+          let target: { type: 'Polygon'; coordinates: number[][][] } | typeof f = f
+          if (f.geometry.type === 'MultiPolygon') {
+            let bestArea = -Infinity
+            for (const polyCoords of f.geometry.coordinates) {
+              const sub = { type: 'Polygon' as const, coordinates: polyCoords }
+              const a = Math.abs(pathGen.area({ type: 'Feature', properties: {}, geometry: sub }))
+              if (a > bestArea) {
+                bestArea = a
+                target = sub
+              }
+            }
+          }
+          const [cx, cy] = pathGen.centroid(target as never)
           if (Number.isFinite(cx) && Number.isFinite(cy)) return [cx, cy]
         }
         const m = projectedMarkers.find((mk) => mk.iso === iso)
