@@ -46,19 +46,18 @@ export default function LabelTray({
       <div
         className="help-zone"
         data-help-target="true"
-        aria-label="Hulp-zone: sleep een land hier, of pak de handle om het antwoord te onthullen"
+        aria-label="Hulp-zone: sleep een land hier voor zoom, of sleep dit naar een land voor het antwoord"
       >
-        <strong>Hulp</strong>
-        <span
-          className="label__handle help-zone__handle"
-          aria-label="Sleep om antwoord te onthullen"
+        <div
+          className="label__drag help-zone__drag"
           onPointerDown={handlePointerDown(HELP_DRAG_LABEL)}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
         >
-          ≡
-        </span>
+          <strong>Hulp</strong>
+        </div>
+        <div className="label__scroll" aria-hidden="true" />
       </div>
       <div className="tray__inner">
         {labels.map((label) => {
@@ -77,18 +76,17 @@ export default function LabelTray({
             .join(' ')
           return (
             <div key={label.iso} className={cls}>
-              <span className="label__text">{label.name}</span>
-              {isTop && <span className="label__bonus">+2</span>}
-              <span
-                className="label__handle"
-                aria-label="Sleep om te plaatsen"
+              <div
+                className="label__drag"
                 onPointerDown={handlePointerDown(label)}
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
                 onPointerCancel={handlePointerUp}
               >
-                ≡
-              </span>
+                <span className="label__text">{label.name}</span>
+                {isTop && <span className="label__bonus">+2</span>}
+              </div>
+              <div className="label__scroll" aria-hidden="true" />
             </div>
           )
         })}

@@ -269,6 +269,12 @@ export default function App() {
             >
               score {score}
             </span>
+            <span
+              className="score score--multiplier"
+              title="Teller: +1 goed, -1 fout, -1 zoom-hulp, reset bij antwoord"
+            >
+              +{multiplier}
+            </span>
             <span className="score score--timer" title="Speeltijd">
               {formatDuration(elapsedSec)}
             </span>
@@ -316,12 +322,6 @@ export default function App() {
           <div className="topbar__meta">
             {phase === 'playing' && (
               <>
-                <span
-                  className="score score--multiplier"
-                  title="Teller: +1 goed, -1 fout, -1 zoom-hulp, reset bij antwoord"
-                >
-                  +{multiplier}
-                </span>
                 <button
                   type="button"
                   onClick={() => setLabelsHidden((v) => !v)}

@@ -183,6 +183,24 @@ body,
   .reset--stop {
     text-align: center;
   }
+
+  .label__drag {
+    flex: 3;
+  }
+
+  .label__scroll {
+    display: block;
+    flex: 1;
+    touch-action: pan-y;
+    align-self: stretch;
+    background: repeating-linear-gradient(
+      135deg,
+      rgba(148, 163, 184, 0.15),
+      rgba(148, 163, 184, 0.15) 4px,
+      transparent 4px,
+      transparent 8px
+    );
+  }
 }
 
 .map-wrap {
@@ -324,10 +342,6 @@ body,
 
 .help-zone {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.6rem 0.7rem;
   margin: 0.75rem 0.75rem 0;
   background: #fef3c7;
   border: 2px dashed #f59e0b;
@@ -336,6 +350,11 @@ body,
   color: #92400e;
   flex-shrink: 0;
   user-select: none;
+  overflow: hidden;
+}
+
+.help-zone__drag {
+  padding: 0.6rem 0.7rem;
 }
 
 .ghost--help {
@@ -552,15 +571,13 @@ body,
 
 .label {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
   background: #f1f5f9;
   border: 1px solid #cbd5e1;
   border-radius: 6px;
-  padding: 0.4rem 0.4rem 0.4rem 0.7rem;
   font-size: 0.85rem;
   user-select: none;
   transition: background 120ms ease, border-color 120ms ease, transform 80ms ease;
+  overflow: hidden;
 }
 
 .label:hover {
@@ -568,40 +585,28 @@ body,
   border-color: #94a3b8;
 }
 
+.label__drag {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.7rem;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.label__drag:active {
+  cursor: grabbing;
+}
+
 .label__text {
   flex: 1;
   min-width: 0;
 }
 
-.label__handle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 4px;
-  background: #cbd5e1;
-  color: #1f2937;
-  font-size: 1.1rem;
-  line-height: 1;
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
-  flex-shrink: 0;
-}
-
-.label__handle:active {
-  cursor: grabbing;
-  background: #94a3b8;
-}
-
-.help-zone__handle {
-  background: #f59e0b;
-  color: #1f2937;
-}
-
-.help-zone__handle:active {
-  background: #d97706;
+.label__scroll {
+  display: none;
 }
 
 .label--dragging {
