@@ -11,6 +11,8 @@ body,
   color: #1f2937;
   background: #f8fafc;
   overflow: hidden;
+  overscroll-behavior: contain;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .app {
