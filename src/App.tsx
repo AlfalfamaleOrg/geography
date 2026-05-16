@@ -257,7 +257,7 @@ export default function App() {
       }`}
     >
       <header className={`topbar${menuOpen ? ' topbar--menu-open' : ''}`}>
-        <h1>Geografie test</h1>
+        <h1 className="topbar__title topbar__title--main">Geografie test</h1>
         {phase === 'playing' && (
           <div className="topbar__inline">
             <span className="score">
@@ -289,7 +289,8 @@ export default function App() {
         >
           <span aria-hidden="true">☰</span>
         </button>
-        <div className="topbar__menu" onClick={() => setMenuOpen(false)}>
+        <div className="topbar__menu">
+          <h2 className="topbar__title topbar__title--menu">Geografie test</h2>
           <nav className="modes" aria-label="Spelmodus">
             <select
               className="mode-select"
