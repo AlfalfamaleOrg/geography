@@ -252,28 +252,6 @@ const continentCountries = (cont: TContinentCode): Country[] => {
   return list.sort((a, b) => a.name.localeCompare(b.name, 'nl'))
 }
 
-const polygonBbox = (
-  minLon: number,
-  minLat: number,
-  maxLon: number,
-  maxLat: number,
-): Feature<Geometry> => ({
-  type: 'Feature',
-  properties: {},
-  geometry: {
-    type: 'Polygon',
-    coordinates: [
-      [
-        [minLon, minLat],
-        [maxLon, minLat],
-        [maxLon, maxLat],
-        [minLon, maxLat],
-        [minLon, minLat],
-      ],
-    ],
-  },
-})
-
 export const seasMode: GameMode = {
   id: 'seas',
   label: 'Zeeën & oceanen',

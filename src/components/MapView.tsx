@@ -8,6 +8,7 @@ import {
 } from 'react'
 import { geoDistance, geoGraticule10, geoPath } from 'd3-geo'
 import { select } from 'd3-selection'
+import 'd3-transition'
 import {
   zoom,
   zoomIdentity,

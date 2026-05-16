@@ -10,9 +10,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@types/d3-transition": "^3.0.9",
     "countries-list": "^3.3.0",
     "d3-geo": "^3.1.1",
     "d3-selection": "^3.0.0",
+    "d3-transition": "^3.0.1",
     "d3-zoom": "^3.0.0",
     "i18n-iso-countries": "^7.14.0",
     "react": "^19.2.6",
