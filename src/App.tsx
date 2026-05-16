@@ -8,6 +8,7 @@ type DragState = {
   label: Country
   x: number
   y: number
+  offsetY: number
 }
 
 type HighScore = {
@@ -126,8 +127,8 @@ export default function App() {
     completeGame()
   }
 
-  const handleDragStart = (label: Country, x: number, y: number) => {
-    setDrag({ label, x, y })
+  const handleDragStart = (label: Country, x: number, y: number, offsetY: number) => {
+    setDrag({ label, x, y, offsetY })
   }
 
   const handleDragMove = (x: number, y: number) => {
@@ -143,7 +144,7 @@ export default function App() {
 
   const handleDragEnd = () => {
     if (!drag) return
-    const el = document.elementFromPoint(drag.x, drag.y) as Element | null
+    const el = document.elementFromPoint(drag.x, drag.y + drag.offsetY) as Element | null
     const isHelpDrag = drag.label.iso === HELP_DRAG_LABEL.iso
 
     if (isHelpDrag) {
@@ -411,10 +412,14 @@ export default function App() {
       )}
       {drag && (
         <>
-          <div className="ghost-dot" style={{ left: drag.x, top: drag.y }} aria-hidden="true" />
+          <div
+            className="ghost-dot"
+            style={{ left: drag.x, top: drag.y + drag.offsetY }}
+            aria-hidden="true"
+          />
           <div
             className={`ghost${drag.label.iso === HELP_DRAG_LABEL.iso ? ' ghost--help' : ''}`}
-            style={{ left: drag.x, top: drag.y }}
+            style={{ left: drag.x, top: drag.y + drag.offsetY }}
             aria-hidden="true"
           >
             {drag.label.name}

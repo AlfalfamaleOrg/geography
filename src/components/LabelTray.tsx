@@ -6,10 +6,13 @@ type Props = {
   wrongIso: string | null
   offScreenIso: string | null
   topIso: string | null
-  onDragStart: (label: Country, clientX: number, clientY: number) => void
+  onDragStart: (label: Country, clientX: number, clientY: number, offsetY: number) => void
   onDragMove: (clientX: number, clientY: number) => void
   onDragEnd: () => void
 }
+
+const computeOffsetY = (pointerType: string): number =>
+  pointerType === 'touch' ? -44 : 0
 
 export default function LabelTray({
   labels,
@@ -23,7 +26,7 @@ export default function LabelTray({
 }: Props) {
   const handlePointerDown = (label: Country) => (event: React.PointerEvent<HTMLDivElement>) => {
     event.currentTarget.setPointerCapture(event.pointerId)
-    onDragStart(label, event.clientX, event.clientY)
+    onDragStart(label, event.clientX, event.clientY, computeOffsetY(event.pointerType))
   }
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
