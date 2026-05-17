@@ -4,7 +4,7 @@ Project context for future Claude sessions. Pas dit aan als architectuur of conv
 
 ## Wat is dit
 
-Een drag-and-drop geografie quiz. Sleep landnamen vanuit de tray op de juiste positie op de kaart. Hosted op GitHub Pages onder `/geography/`. Hoofdtaal: Nederlands.
+Een drag-and-drop geografie quiz. Sleep landnamen vanuit de tray op de juiste positie op de kaart. Hosted op `geografie.vdhout.cc` (custom domain via Cloudflare DNS, GitHub Pages als origin). Hoofdtaal: Nederlands.
 
 ## Stack
 
@@ -16,7 +16,7 @@ Een drag-and-drop geografie quiz. Sleep landnamen vanuit de tray op de juiste po
 - **countries-list** voor continent-classificatie
 - **Custom GeoJSON in `src/data/`** voor NL/BE/DE/FR/ES/CN regio's (gedownload van click_that_hood, cartomap, Eurostat NUTS, isellsoap)
 - **GitHub Actions** workflow (`.github/workflows/deploy.yml`) publiceert naar Pages bij push naar main
-- **Vite `base: '/geography/'`** voor de Pages subpath
+- **Custom domain** `geografie.vdhout.cc` via `public/CNAME`; Vite `base: '/'` want geen subpath meer
 
 ## Belangrijke architectuur
 
@@ -116,7 +116,7 @@ src/
     spain-communities.json
     china-provinces.json
 .github/workflows/deploy.yml   # Build + deploy to Pages
-vite.config.ts         # base: '/geography/'
+vite.config.ts         # base: '/' (custom domain)
 ```
 
 ## Conventies die in deze codebase gelden
@@ -145,4 +145,4 @@ vite.config.ts         # base: '/geography/'
 
 - Remote: `https://github.com/AlfalfamaleOrg/geography.git`
 - Default branch: `main`
-- Pages site: `https://alfalfamaleorg.github.io/geography/`
+- Live site: `https://geografie.vdhout.cc` (GitHub Pages origin: `alfalfamaleorg.github.io/geography`)
