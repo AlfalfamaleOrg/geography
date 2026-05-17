@@ -4,7 +4,7 @@ Project context for future Claude sessions. Pas dit aan als architectuur of conv
 
 ## Wat is dit
 
-Een drag-and-drop geografie quiz. Sleep landnamen vanuit de tray op de juiste positie op de kaart. Hosted op `geografie.vdhout.cc` (custom domain via Cloudflare DNS, GitHub Pages als origin). Hoofdtaal: Nederlands.
+Een drag-and-drop geografie quiz. Sleep landnamen vanuit de tray op de juiste positie op de kaart. Hosted op `geografie.vdhout.cc` via **Cloudflare Pages** (project `geografie`). Hoofdtaal: Nederlands.
 
 ## Stack
 
@@ -15,8 +15,8 @@ Een drag-and-drop geografie quiz. Sleep landnamen vanuit de tray op de juiste po
 - **i18n-iso-countries** voor Nederlandse landnamen (alias-vorm)
 - **countries-list** voor continent-classificatie
 - **Custom GeoJSON in `src/data/`** voor NL/BE/DE/FR/ES/CN regio's (gedownload van click_that_hood, cartomap, Eurostat NUTS, isellsoap)
-- **GitHub Actions** workflow (`.github/workflows/deploy.yml`) publiceert naar Pages bij push naar main
-- **Custom domain** `geografie.vdhout.cc` via `public/CNAME`; Vite `base: '/'` want geen subpath meer
+- **GitHub Actions** workflow (`.github/workflows/deploy.yml`) deployt naar Cloudflare Pages bij push naar main via `cloudflare/wrangler-action@v3` (gebruikt secrets `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID`)
+- **Custom domain** `geografie.vdhout.cc` gekoppeld aan Pages project (proxied CNAME → `geografie.pages.dev`, Universal SSL); Vite `base: '/'`
 
 ## Belangrijke architectuur
 
@@ -115,7 +115,7 @@ src/
     france-regions.json
     spain-communities.json
     china-provinces.json
-.github/workflows/deploy.yml   # Build + deploy to Pages
+.github/workflows/deploy.yml   # Build + deploy to Cloudflare Pages
 vite.config.ts         # base: '/' (custom domain)
 ```
 
@@ -145,4 +145,4 @@ vite.config.ts         # base: '/' (custom domain)
 
 - Remote: `https://github.com/AlfalfamaleOrg/geography.git`
 - Default branch: `main`
-- Live site: `https://geografie.vdhout.cc` (GitHub Pages origin: `alfalfamaleorg.github.io/geography`)
+- Live site: `https://geografie.vdhout.cc` (Cloudflare Pages: `https://geografie.pages.dev`)
