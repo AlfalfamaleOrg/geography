@@ -29,6 +29,8 @@ type Props = {
   mode: GameMode
   placed: Record<string, string>
   onZoomChange?: (k: number) => void
+  /** When set, country/region clicks call this with the iso. Used for browse/drill-down. */
+  onCountryClick?: (iso: string) => void
 }
 
 const WIDTH = 1000
@@ -45,7 +47,7 @@ const isInvalidIso = (iso: string): boolean =>
 const SPHERE = { type: 'Sphere' as const }
 
 const MapView = forwardRef<MapViewHandle, Props>(function MapView(
-  { mode, placed, onZoomChange },
+  { mode, placed, onZoomChange, onCountryClick },
   ref,
 ) {
   const svgRef = useRef<SVGSVGElement>(null)
@@ -417,8 +419,21 @@ const MapView = forwardRef<MapViewHandle, Props>(function MapView(
 
   const wrapOffsets = wrapEnabled ? [-1, 0, 1] : [0]
 
+  const handleClick = onCountryClick
+    ? (e: React.MouseEvent<SVGSVGElement>) => {
+        const el = (e.target as Element).closest('[data-iso]')
+        const iso = el?.getAttribute('data-iso')
+        if (iso) onCountryClick(iso)
+      }
+    : undefined
+
   return (
-    <svg ref={svgRef} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="map">
+    <svg
+      ref={svgRef}
+      viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+      className={`map${onCountryClick ? ' map--browse' : ''}`}
+      onClick={handleClick}
+    >
       <rect width={WIDTH} height={HEIGHT} className="map__sea" />
       <g className="map__zoomable" transform={transform.toString()}>
         {wrapOffsets.map((offset) => (

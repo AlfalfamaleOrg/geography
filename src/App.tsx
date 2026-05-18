@@ -3,6 +3,7 @@ import MapView, { type MapViewHandle } from './components/MapView'
 import LabelTray from './components/LabelTray'
 import {
   HELP_DRAG_LABEL,
+  findCountryMode,
   loadGameMode,
   modeRefs,
   worldMode,
@@ -245,6 +246,18 @@ export default function App() {
     resetGameState(mode)
   }
 
+  const handleBrowseClick = (iso: string) => {
+    const country = findCountryMode(iso)
+    if (!country) return
+    void handleSelectModeRef(country)
+  }
+
+  const handleNavigateModeId = (id: string) => {
+    if (id === mode.id) return
+    const ref = modeRefs.find((m) => m.id === id)
+    if (ref) void handleSelectModeRef(ref)
+  }
+
   const handleSelectModeRef = async (next: GameModeRef) => {
     if (next.id === mode.id) return
     setModeLoading(true)
@@ -389,10 +402,28 @@ export default function App() {
       </header>
       {phase === 'start' && (
         <section className="screen screen--start">
+          <div className="start__nav">
+            <Breadcrumb modeId={mode.id} onNavigate={handleNavigateModeId} />
+            <div className="start__map">
+              <MapView
+                mode={mode}
+                placed={{}}
+                onCountryClick={handleBrowseClick}
+              />
+              {modeLoading && (
+                <div className="start__map-loading">Bezig met laden…</div>
+              )}
+            </div>
+            <p className="start__hint">
+              {mode.id === 'world'
+                ? 'Klik op een land om in te zoomen op zijn provincies/staten, of klik op Start om de wereldtest te beginnen.'
+                : 'Klik op een gebied om dieper te gaan, of start de test op het huidige niveau.'}
+            </p>
+          </div>
           <div className="screen__panel">
             <h2>Welkom</h2>
             <p className="screen__lead">
-              Modus: <strong>{mode.label}</strong> ({mode.countries.length} landen)
+              Modus: <strong>{mode.label}</strong> ({mode.countries.length} items)
             </p>
             <label className="field">
               <span>Naam</span>
@@ -408,8 +439,13 @@ export default function App() {
                 autoFocus
               />
             </label>
-            <button type="button" className="primary" onClick={handleStart}>
-              Start
+            <button
+              type="button"
+              className="primary"
+              onClick={handleStart}
+              disabled={modeLoading}
+            >
+              Start test op {mode.label}
             </button>
           </div>
           <HighScores entries={modeHighScores} modeLabel={mode.label} />
@@ -472,6 +508,44 @@ export default function App() {
         </>
       )}
     </div>
+  )
+}
+
+type BreadcrumbProps = {
+  modeId: string
+  onNavigate: (id: string) => void
+}
+
+function Breadcrumb({ modeId, onNavigate }: BreadcrumbProps) {
+  const path: GameModeRef[] = []
+  let cursor: GameModeRef | undefined = modeRefs.find((m) => m.id === modeId)
+  while (cursor) {
+    path.unshift(cursor)
+    const parentId: string | null = cursor.parent
+    cursor = parentId ? modeRefs.find((m) => m.id === parentId) : undefined
+  }
+  return (
+    <nav className="breadcrumb" aria-label="Navigatie">
+      {path.map((m, i) => {
+        const isCurrent = i === path.length - 1
+        return (
+          <span key={m.id} className="breadcrumb__item">
+            {i > 0 && <span className="breadcrumb__sep" aria-hidden="true">›</span>}
+            {isCurrent ? (
+              <span className="breadcrumb__current">{m.label}</span>
+            ) : (
+              <button
+                type="button"
+                className="breadcrumb__link"
+                onClick={() => onNavigate(m.id)}
+              >
+                {m.label}
+              </button>
+            )}
+          </span>
+        )
+      })}
+    </nav>
   )
 }
 

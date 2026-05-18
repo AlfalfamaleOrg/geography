@@ -551,10 +551,16 @@ async function buildRegionMode(def: RegionDef): Promise<GameMode> {
   }
 }
 
+export type ModeLevel = 'world' | 'continent' | 'country' | 'province'
+
 export type GameModeRef = {
   id: string
   label: string
   category: Category
+  parent: string | null
+  level: ModeLevel
+  /** Numeric ISO of the country this mode covers (only for region/country-level modes). */
+  countryIso?: string
 }
 
 const eagerModes: Record<string, GameMode> = {
@@ -583,19 +589,29 @@ export async function loadGameMode(id: string): Promise<GameMode> {
 }
 
 export const modeRefs: GameModeRef[] = [
-  { id: 'world', label: 'Wereld', category: 'continent' },
-  { id: 'europe', label: 'Europa', category: 'continent' },
-  { id: 'africa', label: 'Afrika', category: 'continent' },
-  { id: 'asia', label: 'Azië', category: 'continent' },
-  { id: 'north-america', label: 'Noord-Amerika', category: 'continent' },
-  { id: 'south-america', label: 'Zuid-Amerika', category: 'continent' },
-  { id: 'oceania', label: 'Oceanië', category: 'continent' },
-  { id: 'seas', label: 'Zeeën & oceanen', category: 'continent' },
-  { id: 'nl-provinces', label: 'Nederland — provincies', category: 'region' },
-  { id: 'be-provinces', label: 'België — provincies', category: 'region' },
-  { id: 'de-states', label: 'Duitsland — deelstaten', category: 'region' },
-  { id: 'fr-regions', label: 'Frankrijk — regio’s', category: 'region' },
-  { id: 'es-communities', label: 'Spanje — regio’s', category: 'region' },
-  { id: 'usa-states', label: 'VS — staten', category: 'region' },
-  { id: 'cn-provinces', label: 'China — provincies', category: 'region' },
+  { id: 'world', label: 'Wereld', category: 'continent', parent: null, level: 'world' },
+  { id: 'europe', label: 'Europa', category: 'continent', parent: 'world', level: 'continent' },
+  { id: 'africa', label: 'Afrika', category: 'continent', parent: 'world', level: 'continent' },
+  { id: 'asia', label: 'Azië', category: 'continent', parent: 'world', level: 'continent' },
+  { id: 'north-america', label: 'Noord-Amerika', category: 'continent', parent: 'world', level: 'continent' },
+  { id: 'south-america', label: 'Zuid-Amerika', category: 'continent', parent: 'world', level: 'continent' },
+  { id: 'oceania', label: 'Oceanië', category: 'continent', parent: 'world', level: 'continent' },
+  { id: 'seas', label: 'Zeeën & oceanen', category: 'continent', parent: 'world', level: 'continent' },
+  { id: 'nl-provinces', label: 'Nederland — provincies', category: 'region', parent: 'europe', level: 'country', countryIso: '528' },
+  { id: 'be-provinces', label: 'België — provincies', category: 'region', parent: 'europe', level: 'country', countryIso: '056' },
+  { id: 'de-states', label: 'Duitsland — deelstaten', category: 'region', parent: 'europe', level: 'country', countryIso: '276' },
+  { id: 'fr-regions', label: 'Frankrijk — regio’s', category: 'region', parent: 'europe', level: 'country', countryIso: '250' },
+  { id: 'es-communities', label: 'Spanje — regio’s', category: 'region', parent: 'europe', level: 'country', countryIso: '724' },
+  { id: 'usa-states', label: 'VS — staten', category: 'region', parent: 'north-america', level: 'country', countryIso: '840' },
+  { id: 'cn-provinces', label: 'China — provincies', category: 'region', parent: 'asia', level: 'country', countryIso: '156' },
 ]
+
+/** Find the country-level mode for a numeric country ISO, or undefined if none exists. */
+export function findCountryMode(iso: string): GameModeRef | undefined {
+  return modeRefs.find((m) => m.level === 'country' && m.countryIso === iso)
+}
+
+/** Direct children of a mode in the navigation tree. */
+export function modeChildren(id: string): GameModeRef[] {
+  return modeRefs.filter((m) => m.parent === id)
+}
