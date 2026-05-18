@@ -14,7 +14,8 @@ Een drag-and-drop geografie quiz. Sleep landnamen vanuit de tray op de juiste po
 - **us-atlas** (states-albers-10m) voor VS-staten, pre-projected Albers via `geoIdentity()`
 - **i18n-iso-countries** voor Nederlandse landnamen (alias-vorm)
 - **countries-list** voor continent-classificatie
-- **Custom GeoJSON in `src/data/`** voor NL/BE/DE/FR/ES/CN regio's (gedownload van click_that_hood, cartomap, Eurostat NUTS, isellsoap)
+- **Region-data lazy-loaded uit `public/regions/`** — per land en per provincie aparte GeoJSON files, gefetched bij modus-selectie (initial bundle blijft klein). Curated landen (NL/BE/DE/FR/ES/CN/US/IT) hebben handmatige Nederlandse namen; ~220 andere landen via Natural Earth Admin 1 (auto-gen)
+- **Sub-province drill-down**: per-provincie gemeente/distrikt/Kreis bestanden voor NL/BE/DE/FR/ES/IT/GB/PL/IN/AR/JP/AU/ID/KR/TH/VN/UA/ZA/NZ — gegenereerd door `scripts/build-municipalities.mjs` via geometrische centroïde-containment (zie data-pipeline sectie)
 - **Cloudflare Workers Builds** CI: bij elke push naar main draait CF zelf `npm run build` + `npx wrangler deploy` (via git-integration op de Worker, geen GH Actions meer)
 - **Cloudflare D1** database `geografie-highscores` voor globale leaderboard. Worker (`worker/index.ts`) routet `/api/highscores` (GET/POST), alles anders via `env.ASSETS.fetch(request)` naar de Vite-build (`dist/`). Bindings in `wrangler.toml` (binding `DB` voor D1, `ASSETS` voor static). Schema in `migrations/0001_init.sql`
 - **Custom domain** `geografie.vdhout.cc` gekoppeld aan Pages project (proxied CNAME → `geografie.pages.dev`, Universal SSL); Vite `base: '/'`
@@ -29,10 +30,46 @@ Een `GameMode` (zie `src/data/modes.ts`) beschrijft een speel-set:
 - `markers: Record<iso, [lon, lat]>` voor losse drop-points (zeeën etc.)
 - `createProjection`, optionele `fitBbox`, `excludeFromMap`, `interaction: 'pan' | 'rotate'`
 - `sourceFeatures?` voor regio-modi met eigen TopoJSON/GeoJSON (overschrijft `countryFeatures`)
+- `contextFeatures?` — optionele niet-interactieve achtergrond-laag (rest van het land bij provincie-quiz, etc.)
+
+Modes worden niet meer statisch geëxporteerd. `modeRefs: GameModeRef[]` is een lightweight lijst (id, label, parent, level, clickIso) gebakken in de bundle. `loadGameMode(id)` doet de fetch + hydratatie op aanvraag — bouwt `sourceFeatures` en `countries[]` uit de gefetchte GeoJSON, met cache zodat tweede selectie instant is.
+
+**Tree-structuur** (`parent`, `level`, `clickIso`):
+- `level: 'world' | 'continent' | 'country' | 'province'`
+- `parent` wijst naar de modus boven in de hiërarchie
+- `clickIso` is de feature-id binnen de parent-kaart die naar deze modus drilt (numeric ISO voor country-modi, province-feature-id voor province-modi)
+
+`findCountryMode(iso)` en `findChildMode(parentId, iso)` doen de lookups voor browse-clicks (zie `handleBrowseClick` in App.tsx).
 
 **Continent-modi** renderen de hele wereld; landen die NIET in `mode.countries` zitten krijgen `country--fixed` (lichtgroen) en geen `data-iso` zodat ze niet interactief zijn. Helpt bij oriëntatie zonder dat ze meetellen voor de quiz.
 
 **Regio-modi** renderen alleen de eigen `sourceFeatures` (NL provincies, VS staten, etc.).
+
+**Province-modi** (level='province', bv. nl-pv30-municipalities) renderen hun eigen features (de gemeenten) + de `contextFeatures` van de parent-modus (lichtgroene rest van NL) onder de hoofd-paths. `fitExtent` fit op de quiz-features zelf (bounded op de provincie), context wordt offscreen geprojecteerd maar zichtbaar bij uitzoomen (`scaleExtent` min 0.3 i.p.v. 1 voor modi met context).
+
+### Data-pipeline
+
+Build-scripts in `scripts/`:
+
+- **`build-regions.mjs`** — bouwt landen-modi uit Natural Earth 10m Admin 1:
+  - Downloadt `ne_10m_admin_1_states_provinces.geojson` (40MB raw) en `ne_10m_admin_0_map_subunits.geojson` naar `scripts/data/` (gitignored)
+  - Groepeert per land (`iso_a2`), slankt features af tot {id, name, name_local, type_en}, schrijft per land `public/regions/<alpha2>-provinces.json`
+  - `MAX_UNITS = 90`: landen met meer admin-1 features worden geskipped (te veel om in één quiz te plaatsen)
+  - `SUBUNIT_OVERRIDES`: voor GB gebruikt NE's `map_subunits` (Engeland/Wales/Schotland/Noord-Ierland als 4 features i.p.v. 232 council areas)
+  - `CURATED` set: skipt landen die hun eigen GeoJSON-source hebben in modes.ts (NL/BE/DE/FR/ES/CN/US/IT)
+  - Manifest: `src/data/regions-manifest.json` met `{id, level, parent, clickIso, label, unitCount, url}` per land — gebundled, niet gefetched
+  - Behoudt bestaande province-level entries bij re-run
+
+- **`build-municipalities.mjs`** — splitst sub-province data per provincie:
+  - Config-driven: per land een entry in `CONFIGS` met parentFile, munSrc, getId/getName functies en outId template
+  - **Planaire ray-casting** point-in-polygon (i.p.v. d3's geoContains) omdat geoBoundaries-data andere winding-orientatie heeft dan d3 verwacht
+  - **Representative point**: arithmetisch gemiddelde van de outer ring van de grootste sub-polygoon (robuuste benadering van centroïde)
+  - Output: per provincie een `public/regions/<land>-<prov>-municipalities.json` + manifest entry met `level: 'province'`, `parent: '<land>-provinces'`, `clickIso: <provincie-feature-id>`
+  - Geometries pre-gesimplificeerd via `@turf/simplify` (tolerance 0.005, ~95% size-reductie)
+
+- **`build-nl-municipalities.mjs`** — oudere NL-specifieke variant (cartomap topojson source). Functioneel gelijk maar gebruikt d3 geoContains (NL-data heeft correcte winding).
+
+- **`convert-regions.mjs`** — eenmalige migratie van src/data/ TopoJSON → public/regions/ GeoJSON voor de 7 oorspronkelijke curated landen.
 
 ### Data-cleaning (modes.ts)
 
@@ -126,6 +163,11 @@ worker/index.ts                # Worker fetch handler: /api/highscores routing +
 migrations/0001_init.sql       # D1 schema (highscores tabel + index)
 wrangler.toml                  # Worker config: main, [assets], [[d1_databases]]
 vite.config.ts                 # base: '/' (custom domain)
+public/regions/                # Per-land + per-provincie GeoJSON files (lazy fetched)
+src/data/regions-manifest.json # Manifest (bundled): id/level/parent/clickIso/url per niet-curated modus
+scripts/build-regions.mjs      # NE Admin 1 → per-land bestanden + manifest
+scripts/build-municipalities.mjs # Per-land config → sub-provincie bestanden
+scripts/data/                  # Raw NE/geoBoundaries downloads (gitignored)
 ```
 
 ## Conventies die in deze codebase gelden
