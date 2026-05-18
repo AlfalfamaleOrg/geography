@@ -1,7 +1,6 @@
 import { feature } from 'topojson-client'
 import { geoIdentity, geoMercator, geoPath, type GeoProjection } from 'd3-geo'
 import worldData from 'world-atlas/countries-50m.json'
-import usaStatesData from 'us-atlas/states-albers-10m.json'
 import countries from 'i18n-iso-countries'
 import nlLocale from 'i18n-iso-countries/langs/nl.json'
 import {
@@ -10,12 +9,6 @@ import {
   type TContinentCode,
   type TCountryCode,
 } from 'countries-list'
-import nlProvincesTopo from './nl-provinces.topojson.json'
-import franceRegionsData from './france-regions.json'
-import spainCommunitiesData from './spain-communities.json'
-import chinaProvincesData from './china-provinces.json'
-import germanyStatesData from './germany-states.json'
-import belgiumProvincesData from './belgium-provinces.json'
 import type { Feature, FeatureCollection, Geometry } from 'geojson'
 import type { GeoSphere } from 'd3-geo'
 import type { Topology } from 'topojson-specification'
@@ -413,232 +406,196 @@ const countriesFromFc = (
     .filter((c) => c.name)
     .sort((a, b) => a.name.localeCompare(b.name, 'nl'))
 
-const nlTopo = nlProvincesTopo as unknown as Topology
-const nlObjectKey = Object.keys(nlTopo.objects)[0]
-const nlProvinceFc = feature(
-  nlTopo,
-  nlTopo.objects[nlObjectKey],
-) as unknown as FeatureCollection<Geometry>
-
-const nlProvinceCountries = countriesFromFc(
-  nlProvinceFc,
-  (f) => (f.properties as { statnaam?: string } | null)?.statnaam ?? String(f.id),
-)
-
-export const nlProvincesMode: GameMode = {
-  id: 'nl-provinces',
-  label: 'Nederland — provincies',
-  category: 'region',
-  countries: nlProvinceCountries,
-  markers: {},
-  createProjection: () => geoMercator(),
-  excludeFromMap: new Set(),
-  interaction: 'pan',
-  sourceFeatures: nlProvinceFc,
+type RegionDef = {
+  id: string
+  label: string
+  url: string
+  interaction?: Interaction
+  createProjection?: () => GeoProjection
+  getId: (f: { id?: unknown; properties: Record<string, unknown> }) => string
+  getName: (f: Feature<Geometry>) => string
+  nameOverrides?: Record<string, string>
+  postProcessFc?: (fc: FeatureCollection<Geometry>) => FeatureCollection<Geometry>
 }
 
-const beFc = buildRegionalFc(
-  belgiumProvincesData as unknown as Parameters<typeof buildRegionalFc>[0],
-  (f) => String((f.properties as Record<string, unknown>).NUTS_ID),
-)
-const beNameOverrides: Record<string, string> = {
-  BE10: 'Brussel',
-  BE21: 'Antwerpen',
-  BE22: 'Limburg',
-  BE23: 'Oost-Vlaanderen',
-  BE24: 'Vlaams-Brabant',
-  BE25: 'West-Vlaanderen',
-  BE31: 'Waals-Brabant',
-  BE32: 'Henegouwen',
-  BE33: 'Luik',
-  BE34: 'Luxemburg',
-  BE35: 'Namen',
-}
-const beProvinceCountries = countriesFromFc(
-  beFc,
-  (f) => {
-    const p = f.properties as Record<string, unknown>
-    return String(p.NUTS_NAME ?? p.NAME_LATN ?? f.id)
+const regionDefs: Record<string, RegionDef> = {
+  'nl-provinces': {
+    id: 'nl-provinces',
+    label: 'Nederland — provincies',
+    url: '/regions/nl-provinces.json',
+    getId: (f) => String(f.id ?? (f.properties.statcode as string | undefined) ?? ''),
+    getName: (f) =>
+      (f.properties as { statnaam?: string } | null)?.statnaam ?? String(f.id),
   },
-  beNameOverrides,
-)
-
-export const belgiumProvincesMode: GameMode = {
-  id: 'be-provinces',
-  label: 'België — provincies',
-  category: 'region',
-  countries: beProvinceCountries,
-  markers: {},
-  createProjection: () => geoMercator(),
-  excludeFromMap: new Set(),
-  interaction: 'pan',
-  sourceFeatures: beFc,
+  'be-provinces': {
+    id: 'be-provinces',
+    label: 'België — provincies',
+    url: '/regions/be-provinces.json',
+    getId: (f) => String((f.properties as Record<string, unknown>).NUTS_ID),
+    getName: (f) => {
+      const p = f.properties as Record<string, unknown>
+      return String(p.NUTS_NAME ?? p.NAME_LATN ?? f.id)
+    },
+    nameOverrides: {
+      BE10: 'Brussel',
+      BE21: 'Antwerpen',
+      BE22: 'Limburg',
+      BE23: 'Oost-Vlaanderen',
+      BE24: 'Vlaams-Brabant',
+      BE25: 'West-Vlaanderen',
+      BE31: 'Waals-Brabant',
+      BE32: 'Henegouwen',
+      BE33: 'Luik',
+      BE34: 'Luxemburg',
+      BE35: 'Namen',
+    },
+  },
+  'de-states': {
+    id: 'de-states',
+    label: 'Duitsland — deelstaten',
+    url: '/regions/de-states.json',
+    getId: (f) => String((f.properties as Record<string, unknown>).id ?? f.id),
+    getName: (f) => String((f.properties as Record<string, unknown>).name ?? f.id),
+    nameOverrides: {
+      'DE-BW': 'Baden-Württemberg',
+      'DE-BY': 'Beieren',
+      'DE-BE': 'Berlijn',
+      'DE-BB': 'Brandenburg',
+      'DE-HB': 'Bremen',
+      'DE-HH': 'Hamburg',
+      'DE-HE': 'Hessen',
+      'DE-MV': 'Mecklenburg-Voor-Pommeren',
+      'DE-NI': 'Nedersaksen',
+      'DE-NW': 'Noordrijn-Westfalen',
+      'DE-RP': 'Rijnland-Palts',
+      'DE-SL': 'Saarland',
+      'DE-SN': 'Saksen',
+      'DE-ST': 'Saksen-Anhalt',
+      'DE-SH': 'Sleeswijk-Holstein',
+      'DE-TH': 'Thüringen',
+    },
+  },
+  'fr-regions': {
+    id: 'fr-regions',
+    label: 'Frankrijk — regio’s',
+    url: '/regions/fr-regions.json',
+    getId: (f) => `fr-${(f.properties as Record<string, unknown>).cartodb_id}`,
+    getName: (f) => String((f.properties as Record<string, unknown>).name ?? f.id),
+    nameOverrides: {
+      'fr-8336': 'Corsica',
+      'fr-8385': 'Elzas',
+      'fr-8386': 'Lotharingen',
+    },
+  },
+  'es-communities': {
+    id: 'es-communities',
+    label: 'Spanje — regio’s',
+    url: '/regions/es-communities.json',
+    getId: (f) => `es-${(f.properties as Record<string, unknown>).cartodb_id}`,
+    getName: (f) => String((f.properties as Record<string, unknown>).name ?? f.id),
+  },
+  'cn-provinces': {
+    id: 'cn-provinces',
+    label: 'China — provincies',
+    url: '/regions/cn-provinces.json',
+    getId: (f) => `cn-${(f.properties as Record<string, unknown>).cartodb_id}`,
+    getName: (f) => String((f.properties as Record<string, unknown>).name ?? f.id),
+  },
+  'usa-states': {
+    id: 'usa-states',
+    label: 'VS — staten',
+    url: '/regions/usa-states.json',
+    createProjection: () => geoIdentity() as unknown as GeoProjection,
+    getId: (f) => String(f.id).padStart(3, '0'),
+    getName: (f) => String((f.properties as Record<string, unknown>).name ?? f.id),
+    nameOverrides: {
+      '004': 'Arizona',
+      '005': 'Arkansas',
+      '006': 'Californië',
+      '008': 'Colorado',
+      '037': 'Noord-Carolina',
+      '038': 'Noord-Dakota',
+      '045': 'Zuid-Carolina',
+      '046': 'Zuid-Dakota',
+      '054': 'West Virginia',
+      '035': 'Nieuw-Mexico',
+    },
+    postProcessFc: (fc) => ({
+      type: 'FeatureCollection',
+      features: fc.features.filter((f) => String(f.id) !== '011'),
+    }),
+  },
 }
 
-const deFc = buildRegionalFc(
-  germanyStatesData as unknown as Parameters<typeof buildRegionalFc>[0],
-  (f) => String((f.properties as Record<string, unknown>).id ?? f.id),
-)
-const deNameOverrides: Record<string, string> = {
-  'DE-BW': 'Baden-Württemberg',
-  'DE-BY': 'Beieren',
-  'DE-BE': 'Berlijn',
-  'DE-BB': 'Brandenburg',
-  'DE-HB': 'Bremen',
-  'DE-HH': 'Hamburg',
-  'DE-HE': 'Hessen',
-  'DE-MV': 'Mecklenburg-Voor-Pommeren',
-  'DE-NI': 'Nedersaksen',
-  'DE-NW': 'Noordrijn-Westfalen',
-  'DE-RP': 'Rijnland-Palts',
-  'DE-SL': 'Saarland',
-  'DE-SN': 'Saksen',
-  'DE-ST': 'Saksen-Anhalt',
-  'DE-SH': 'Sleeswijk-Holstein',
-  'DE-TH': 'Thüringen',
-}
-const deStatesCountries = countriesFromFc(
-  deFc,
-  (f) => String((f.properties as Record<string, unknown>).name ?? f.id),
-  deNameOverrides,
-)
-
-export const germanyStatesMode: GameMode = {
-  id: 'de-states',
-  label: 'Duitsland — deelstaten',
-  category: 'region',
-  countries: deStatesCountries,
-  markers: {},
-  createProjection: () => geoMercator(),
-  excludeFromMap: new Set(),
-  interaction: 'pan',
-  sourceFeatures: deFc,
+async function fetchJson<T>(url: string): Promise<T> {
+  const resp = await fetch(url)
+  if (!resp.ok) throw new Error(`fetch ${url}: ${resp.status}`)
+  return (await resp.json()) as T
 }
 
-const frFc = buildRegionalFc(
-  franceRegionsData as unknown as Parameters<typeof buildRegionalFc>[0],
-  (f) => `fr-${(f.properties as Record<string, unknown>).cartodb_id}`,
-)
-const frNameOverrides: Record<string, string> = {
-  'fr-8336': 'Corsica',
-  'fr-8385': 'Elzas',
-  'fr-8386': 'Lotharingen',
-}
-const frRegionsCountries = countriesFromFc(
-  frFc,
-  (f) => String((f.properties as Record<string, unknown>).name ?? f.id),
-  frNameOverrides,
-)
-
-export const franceRegionsMode: GameMode = {
-  id: 'fr-regions',
-  label: 'Frankrijk — regio’s',
-  category: 'region',
-  countries: frRegionsCountries,
-  markers: {},
-  createProjection: () => geoMercator(),
-  excludeFromMap: new Set(),
-  interaction: 'pan',
-  sourceFeatures: frFc,
+async function buildRegionMode(def: RegionDef): Promise<GameMode> {
+  const raw = await fetchJson<Parameters<typeof buildRegionalFc>[0]>(def.url)
+  let fc = buildRegionalFc(raw, def.getId)
+  if (def.postProcessFc) fc = def.postProcessFc(fc)
+  const list = countriesFromFc(fc, def.getName, def.nameOverrides ?? {})
+  return {
+    id: def.id,
+    label: def.label,
+    category: 'region',
+    countries: list,
+    markers: {},
+    createProjection: def.createProjection ?? (() => geoMercator()),
+    excludeFromMap: new Set(),
+    interaction: def.interaction ?? 'pan',
+    sourceFeatures: fc,
+  }
 }
 
-const esFc = buildRegionalFc(
-  spainCommunitiesData as unknown as Parameters<typeof buildRegionalFc>[0],
-  (f) => `es-${(f.properties as Record<string, unknown>).cartodb_id}`,
-)
-const esCommunitiesCountries = countriesFromFc(
-  esFc,
-  (f) => String((f.properties as Record<string, unknown>).name ?? f.id),
-)
-
-export const spainCommunitiesMode: GameMode = {
-  id: 'es-communities',
-  label: 'Spanje — regio’s',
-  category: 'region',
-  countries: esCommunitiesCountries,
-  markers: {},
-  createProjection: () => geoMercator(),
-  excludeFromMap: new Set(),
-  interaction: 'pan',
-  sourceFeatures: esFc,
+export type GameModeRef = {
+  id: string
+  label: string
+  category: Category
 }
 
-const cnFc = buildRegionalFc(
-  chinaProvincesData as unknown as Parameters<typeof buildRegionalFc>[0],
-  (f) => `cn-${(f.properties as Record<string, unknown>).cartodb_id}`,
-)
-const cnProvincesCountries = countriesFromFc(
-  cnFc,
-  (f) => String((f.properties as Record<string, unknown>).name ?? f.id),
-)
-
-export const chinaProvincesMode: GameMode = {
-  id: 'cn-provinces',
-  label: 'China — provincies',
-  category: 'region',
-  countries: cnProvincesCountries,
-  markers: {},
-  createProjection: () => geoMercator(),
-  excludeFromMap: new Set(),
-  interaction: 'pan',
-  sourceFeatures: cnFc,
+const eagerModes: Record<string, GameMode> = {
+  world: worldMode,
+  europe: europeMode,
+  africa: africaMode,
+  asia: asiaMode,
+  'north-america': northAmericaMode,
+  'south-america': southAmericaMode,
+  oceania: oceaniaMode,
+  seas: seasMode,
 }
 
-const usaTopo = usaStatesData as unknown as Topology
-const usaRawFc = feature(
-  usaTopo,
-  usaTopo.objects.states,
-) as unknown as FeatureCollection<Geometry>
-const usaFc: FeatureCollection<Geometry> = {
-  type: 'FeatureCollection',
-  features: usaRawFc.features
-    .filter((f) => String(f.id) !== '11')
-    .map((f) => ({ ...f, id: String(f.id).padStart(3, '0') })),
-}
-const usaNameOverrides: Record<string, string> = {
-  '004': 'Arizona',
-  '005': 'Arkansas',
-  '006': 'Californië',
-  '008': 'Colorado',
-  '037': 'Noord-Carolina',
-  '038': 'Noord-Dakota',
-  '045': 'Zuid-Carolina',
-  '046': 'Zuid-Dakota',
-  '054': 'West Virginia',
-  '035': 'Nieuw-Mexico',
-}
-const usaStatesCountries = countriesFromFc(
-  usaFc,
-  (f) => String((f.properties as Record<string, unknown>).name ?? f.id),
-  usaNameOverrides,
-)
+const cache = new Map<string, GameMode>()
 
-export const usaStatesMode: GameMode = {
-  id: 'usa-states',
-  label: 'VS — staten',
-  category: 'region',
-  countries: usaStatesCountries,
-  markers: {},
-  createProjection: () => geoIdentity() as unknown as GeoProjection,
-  excludeFromMap: new Set(),
-  interaction: 'pan',
-  sourceFeatures: usaFc,
+export async function loadGameMode(id: string): Promise<GameMode> {
+  const eager = eagerModes[id]
+  if (eager) return eager
+  const cached = cache.get(id)
+  if (cached) return cached
+  const def = regionDefs[id]
+  if (!def) throw new Error(`unknown mode: ${id}`)
+  const mode = await buildRegionMode(def)
+  cache.set(id, mode)
+  return mode
 }
 
-export const modes: GameMode[] = [
-  worldMode,
-  europeMode,
-  africaMode,
-  asiaMode,
-  northAmericaMode,
-  southAmericaMode,
-  oceaniaMode,
-  seasMode,
-  nlProvincesMode,
-  belgiumProvincesMode,
-  germanyStatesMode,
-  franceRegionsMode,
-  spainCommunitiesMode,
-  usaStatesMode,
-  chinaProvincesMode,
+export const modeRefs: GameModeRef[] = [
+  { id: 'world', label: 'Wereld', category: 'continent' },
+  { id: 'europe', label: 'Europa', category: 'continent' },
+  { id: 'africa', label: 'Afrika', category: 'continent' },
+  { id: 'asia', label: 'Azië', category: 'continent' },
+  { id: 'north-america', label: 'Noord-Amerika', category: 'continent' },
+  { id: 'south-america', label: 'Zuid-Amerika', category: 'continent' },
+  { id: 'oceania', label: 'Oceanië', category: 'continent' },
+  { id: 'seas', label: 'Zeeën & oceanen', category: 'continent' },
+  { id: 'nl-provinces', label: 'Nederland — provincies', category: 'region' },
+  { id: 'be-provinces', label: 'België — provincies', category: 'region' },
+  { id: 'de-states', label: 'Duitsland — deelstaten', category: 'region' },
+  { id: 'fr-regions', label: 'Frankrijk — regio’s', category: 'region' },
+  { id: 'es-communities', label: 'Spanje — regio’s', category: 'region' },
+  { id: 'usa-states', label: 'VS — staten', category: 'region' },
+  { id: 'cn-provinces', label: 'China — provincies', category: 'region' },
 ]

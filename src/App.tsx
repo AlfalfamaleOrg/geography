@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import MapView, { type MapViewHandle } from './components/MapView'
 import LabelTray from './components/LabelTray'
-import { HELP_DRAG_LABEL, modes, worldMode, type Country, type GameMode } from './data/modes'
+import {
+  HELP_DRAG_LABEL,
+  loadGameMode,
+  modeRefs,
+  worldMode,
+  type Country,
+  type GameMode,
+  type GameModeRef,
+} from './data/modes'
 import './App.css'
 
 type DragState = {
@@ -82,6 +90,7 @@ export default function App() {
     () => localStorage.getItem(NAME_KEY) ?? '',
   )
   const [mode, setMode] = useState<GameMode>(worldMode)
+  const [modeLoading, setModeLoading] = useState(false)
   const [order, setOrder] = useState<Country[]>(() => shuffle(worldMode.countries))
   const [placed, setPlaced] = useState<Record<string, string>>({})
   const [drag, setDrag] = useState<DragState | null>(null)
@@ -236,11 +245,19 @@ export default function App() {
     resetGameState(mode)
   }
 
-  const handleSelectMode = (nextMode: GameMode) => {
-    if (nextMode.id === mode.id) return
-    setMode(nextMode)
-    resetGameState(nextMode)
-    if (phase === 'complete') setPhase('start')
+  const handleSelectModeRef = async (next: GameModeRef) => {
+    if (next.id === mode.id) return
+    setModeLoading(true)
+    try {
+      const loaded = await loadGameMode(next.id)
+      setMode(loaded)
+      resetGameState(loaded)
+      if (phase === 'complete') setPhase('start')
+    } catch (err) {
+      console.error('Mode laden mislukt:', err)
+    } finally {
+      setModeLoading(false)
+    }
   }
 
   const handleStart = () => {
@@ -314,13 +331,14 @@ export default function App() {
             <select
               className="mode-select"
               value={mode.id}
+              disabled={modeLoading}
               onChange={(e) => {
-                const next = modes.find((m) => m.id === e.target.value)
-                if (next) handleSelectMode(next)
+                const next = modeRefs.find((m) => m.id === e.target.value)
+                if (next) handleSelectModeRef(next)
               }}
             >
               <optgroup label="Continenten">
-                {modes
+                {modeRefs
                   .filter((m) => m.category === 'continent')
                   .map((m) => (
                     <option key={m.id} value={m.id}>
@@ -329,7 +347,7 @@ export default function App() {
                   ))}
               </optgroup>
               <optgroup label="Landen / regio's">
-                {modes
+                {modeRefs
                   .filter((m) => m.category === 'region')
                   .map((m) => (
                     <option key={m.id} value={m.id}>
