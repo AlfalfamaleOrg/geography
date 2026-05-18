@@ -114,6 +114,17 @@ const CONFIGS = {
     },
     outId: (pid) => `be-${pid.toLowerCase()}-municipalities`,
   },
+  gb: {
+    alpha2: 'GB',
+    parentMode: 'gb-provinces',
+    parentFile: 'public/regions/gb-provinces.json',
+    munSrc: { type: 'geojson', path: 'scripts/data/gb-councils.geojson' },
+    munId: (f) => String(f.properties?.adm1_code ?? f.properties?.iso_3166_2 ?? f.id),
+    munName: (f) => String(f.properties?.name ?? f.id),
+    provinceId: (f) => String(f.id),
+    provinceName: (f) => f.properties?.name ?? String(f.id),
+    outId: (pid) => `gb-${pid.toLowerCase()}-municipalities`,
+  },
   it: {
     alpha2: 'IT',
     parentMode: 'it-regions',
