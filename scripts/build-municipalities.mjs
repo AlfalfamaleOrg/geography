@@ -114,6 +114,17 @@ const CONFIGS = {
     },
     outId: (pid) => `be-${pid.toLowerCase()}-municipalities`,
   },
+  es: {
+    alpha2: 'ES',
+    parentMode: 'es-communities',
+    parentFile: 'public/regions/es-communities.json',
+    munSrc: { type: 'geojson', path: 'scripts/data/es-provincias.geojson' },
+    munId: (f) => String(f.properties?.shapeID ?? f.id),
+    munName: (f) => String(f.properties?.shapeName ?? f.id),
+    provinceId: (f) => `es-${f.properties?.cartodb_id}`,
+    provinceName: (f) => f.properties?.name ?? String(f.id),
+    outId: (pid) => `es-${pid.replace(/^es-/, '')}-municipalities`,
+  },
   fr: {
     alpha2: 'FR',
     parentMode: 'fr-regions',
