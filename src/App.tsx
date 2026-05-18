@@ -248,9 +248,32 @@ export default function App() {
   }
 
   const handleBrowseClick = (iso: string) => {
+    const currentRef = modeRefs.find((m) => m.id === mode.id)
+    if (currentRef && currentRef.level !== 'world' && currentRef.level !== 'continent') {
+      return
+    }
     const country = findCountryMode(iso)
     if (!country) return
     void handleSelectModeRef(country)
+  }
+
+  const handleGoHome = async () => {
+    if (mode.id === 'world') {
+      resetGameState(mode)
+      setPhase('start')
+      return
+    }
+    setModeLoading(true)
+    try {
+      const w = await loadGameMode('world')
+      setMode(w)
+      resetGameState(w)
+      setPhase('start')
+    } catch (err) {
+      console.error('Home navigatie mislukt:', err)
+    } finally {
+      setModeLoading(false)
+    }
   }
 
   const handleNavigateModeId = (id: string) => {
@@ -307,7 +330,11 @@ export default function App() {
       }`}
     >
       <header className={`topbar${menuOpen ? ' topbar--menu-open' : ''}`}>
-        <h1 className="topbar__title topbar__title--main">Geografie test</h1>
+        <h1 className="topbar__title topbar__title--main">
+          <button type="button" className="topbar__home" onClick={handleGoHome}>
+            Geografie test
+          </button>
+        </h1>
         {phase === 'playing' && (
           <div className="topbar__inline">
             <span className="score">
@@ -340,7 +367,11 @@ export default function App() {
           <span aria-hidden="true">☰</span>
         </button>
         <div className="topbar__menu">
-          <h2 className="topbar__title topbar__title--menu">Geografie test</h2>
+          <h2 className="topbar__title topbar__title--menu">
+            <button type="button" className="topbar__home" onClick={handleGoHome}>
+              Geografie test
+            </button>
+          </h2>
           <nav className="modes" aria-label="Spelmodus">
             <select
               className="mode-select"

@@ -742,6 +742,20 @@ body,
   display: none;
 }
 
+.topbar__home {
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+}
+
+.topbar__home:hover {
+  text-decoration: underline;
+}
+
 @media (max-width: 720px) {
   .layout {
     grid-template-columns: 1fr;
