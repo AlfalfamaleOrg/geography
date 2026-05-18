@@ -4,7 +4,7 @@ Project context for future Claude sessions. Pas dit aan als architectuur of conv
 
 ## Wat is dit
 
-Een drag-and-drop geografie quiz. Sleep landnamen vanuit de tray op de juiste positie op de kaart. Hosted op `geografie.vdhout.cc` via **Cloudflare Pages** (project `geografie`). Hoofdtaal: Nederlands.
+Een drag-and-drop geografie quiz. Sleep landnamen vanuit de tray op de juiste positie op de kaart. Hosted op `geografie.vdhout.cc` als **Cloudflare Worker met Static Assets** (Worker `geografie`, account `ac18a7e1557b0ab6eae7d92704ebefbd`). Hoofdtaal: Nederlands.
 
 ## Stack
 
@@ -15,8 +15,8 @@ Een drag-and-drop geografie quiz. Sleep landnamen vanuit de tray op de juiste po
 - **i18n-iso-countries** voor Nederlandse landnamen (alias-vorm)
 - **countries-list** voor continent-classificatie
 - **Custom GeoJSON in `src/data/`** voor NL/BE/DE/FR/ES/CN regio's (gedownload van click_that_hood, cartomap, Eurostat NUTS, isellsoap)
-- **GitHub Actions** workflow (`.github/workflows/deploy.yml`) deployt naar Cloudflare Pages bij push naar main via `cloudflare/wrangler-action@v3` (gebruikt secrets `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID`)
-- **Cloudflare D1** database `geografie-highscores` met Pages Function `functions/api/highscores.ts` voor globale leaderboard. Binding in `wrangler.toml` (binding `DB`); secret `TURNSTILE_SECRET` als Pages env var. Schema in `migrations/0001_init.sql`
+- **Cloudflare Workers Builds** CI: bij elke push naar main draait CF zelf `npm run build` + `npx wrangler deploy` (via git-integration op de Worker, geen GH Actions meer)
+- **Cloudflare D1** database `geografie-highscores` voor globale leaderboard. Worker (`worker/index.ts`) routet `/api/highscores` (GET/POST), alles anders via `env.ASSETS.fetch(request)` naar de Vite-build (`dist/`). Bindings in `wrangler.toml` (binding `DB` voor D1, `ASSETS` voor static). Schema in `migrations/0001_init.sql`
 - **Custom domain** `geografie.vdhout.cc` gekoppeld aan Pages project (proxied CNAME → `geografie.pages.dev`, Universal SSL); Vite `base: '/'`
 
 ## Belangrijke architectuur
@@ -69,7 +69,7 @@ Een `GameMode` (zie `src/data/modes.ts`) beschrijft een speel-set:
 
 - Globale leaderboard opgeslagen in D1 database `geografie-highscores` (binding `DB`).
 - Tabel `highscores(id, name, score, duration, mode, created_at)` met index `(mode, score DESC, duration ASC)`. Schema in `migrations/0001_init.sql`.
-- API:
+- API (in `worker/index.ts`):
   - `GET /api/highscores?mode=<id>` → top 10 voor die modus.
   - `POST /api/highscores` body `{name, score, duration, mode}` → server valideert + insert + returnt de volledige row.
 - Frontend (`App.tsx`) fetcht bij mount en bij mode-switch via `fetchHighScores`. Bij `completeGame` POST in achtergrond; bij succes re-fetch top 10 en stash `myEntryId` voor highlight.
@@ -122,10 +122,9 @@ src/
     france-regions.json
     spain-communities.json
     china-provinces.json
-.github/workflows/deploy.yml   # Build + deploy to Cloudflare Pages
-functions/api/highscores.ts    # Pages Function: GET/POST naar D1 + Turnstile verify
+worker/index.ts                # Worker fetch handler: /api/highscores routing + ASSETS fallback
 migrations/0001_init.sql       # D1 schema (highscores tabel + index)
-wrangler.toml                  # Pages config + D1 binding
+wrangler.toml                  # Worker config: main, [assets], [[d1_databases]]
 vite.config.ts                 # base: '/' (custom domain)
 ```
 
@@ -148,11 +147,11 @@ vite.config.ts                 # base: '/' (custom domain)
 ## Workflow voor wijzigingen
 
 1. Werk op een feature-branch (zoals `mobile-support`), test lokaal via `npm run dev` (port 5174).
-2. Commits direct naar main pushen na review/test; CI verifieert build, deploy naar Pages automatisch.
+2. Commits direct naar main pushen na review/test; Cloudflare Workers Builds bouwt + deployt automatisch op push.
 3. Voor visuele verificatie: playwright lokaal met `chromium` (zonder `--with-deps`). Snapshots in `/tmp/`.
 
 ## Origin
 
 - Remote: `https://github.com/AlfalfamaleOrg/geography.git`
 - Default branch: `main`
-- Live site: `https://geografie.vdhout.cc` (Cloudflare Pages: `https://geografie.pages.dev`)
+- Live site: `https://geografie.vdhout.cc` (Cloudflare Worker `geografie.workers.dev`)

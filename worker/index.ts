@@ -1,5 +1,8 @@
+/// <reference types="@cloudflare/workers-types" />
+
 interface Env {
   DB: D1Database
+  ASSETS: Fetcher
 }
 
 interface ScoreRow {
@@ -30,7 +33,7 @@ function json(data: unknown, status = 200): Response {
   })
 }
 
-export const onRequestGet: PagesFunction<Env> = async ({ env, request }) => {
+async function handleGet(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url)
   const mode = url.searchParams.get('mode') ?? ''
   if (!MODE_RE.test(mode)) {
@@ -48,7 +51,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ env, request }) => {
   return json({ scores: results ?? [] })
 }
 
-export const onRequestPost: PagesFunction<Env> = async ({ env, request }) => {
+async function handlePost(request: Request, env: Env): Promise<Response> {
   let body: PostBody
   try {
     body = (await request.json()) as PostBody
@@ -57,7 +60,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ env, request }) => {
   }
 
   const rawName = typeof body.name === 'string' ? body.name.trim() : ''
-  const name = (rawName.slice(0, MAX_NAME_LEN) || 'anoniem')
+  const name = rawName.slice(0, MAX_NAME_LEN) || 'anoniem'
 
   const score = Math.floor(Number(body.score))
   const duration = Math.floor(Number(body.duration))
@@ -83,3 +86,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ env, request }) => {
 
   return json({ entry: inserted }, 201)
 }
+
+export default {
+  async fetch(request, env): Promise<Response> {
+    const url = new URL(request.url)
+    if (url.pathname === '/api/highscores') {
+      if (request.method === 'GET') return handleGet(request, env)
+      if (request.method === 'POST') return handlePost(request, env)
+      return json({ error: 'method not allowed' }, 405)
+    }
+    return env.ASSETS.fetch(request)
+  },
+} satisfies ExportedHandler<Env>

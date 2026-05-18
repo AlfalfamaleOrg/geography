@@ -1,6 +1,11 @@
 name = "geografie"
+main = "worker/index.ts"
 compatibility_date = "2025-01-01"
-pages_build_output_dir = "dist"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
 
 [[d1_databases]]
 binding = "DB"
