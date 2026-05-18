@@ -556,10 +556,16 @@ type JumpBarProps = {
 
 function ChildrenJumpBar({ modeId, onNavigate }: JumpBarProps) {
   const children = modeChildren(modeId)
-  if (children.length === 0) return null
+  // Op wereldniveau alleen continenten tonen; auto-gen Antarctica-territoria die
+  // technisch parent='world' hebben filteren we eruit.
+  const filtered =
+    modeId === 'world'
+      ? children.filter((c) => c.category === 'continent')
+      : children
+  if (filtered.length === 0) return null
   return (
     <div className="jumpbar" aria-label="Snelle navigatie">
-      {children.map((c) => (
+      {filtered.map((c) => (
         <button
           key={c.id}
           type="button"

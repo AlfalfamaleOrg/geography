@@ -58,7 +58,7 @@ const SUBUNIT_OVERRIDES = {
 
 // Maximum aantal admin-1 features. Boven dit aantal wordt het land
 // niet als spelmodus aangemaakt (te veel om in één quiz te plaatsen).
-const MAX_UNITS = 80
+const MAX_UNITS = 90
 
 const CONTINENT_TO_MODE = {
   EU: 'europe',
@@ -193,6 +193,18 @@ for (const [a2, cfg] of Object.entries(SUBUNIT_OVERRIDES)) {
 }
 
 manifest.sort((a, b) => a.label.localeCompare(b.label, 'nl'))
+
+// Preserve province-level entries (toegevoegd door build-municipalities.mjs).
+try {
+  const existing = JSON.parse(
+    await fs.readFile('src/data/regions-manifest.json', 'utf8'),
+  )
+  const provinces = existing.filter((e) => e.level === 'province')
+  manifest.push(...provinces)
+  manifest.sort((a, b) => a.label.localeCompare(b.label, 'nl'))
+} catch {
+  // geen bestaand manifest — niets te bewaren
+}
 
 await fs.writeFile(
   'src/data/regions-manifest.json',
