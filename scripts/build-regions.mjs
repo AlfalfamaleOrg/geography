@@ -131,11 +131,12 @@ for (const [a2, features] of byA2) {
 
   manifest.push({
     id: `${a2.toLowerCase()}-provinces`,
-    alpha2: a2,
-    numeric,
-    label: dutchName,
+    level: 'country',
     parent,
+    clickIso: numeric,
+    label: dutchName,
     unitCount: features.length,
+    url: `/regions/${a2.toLowerCase()}-provinces.json`,
   })
 }
 
@@ -182,11 +183,12 @@ for (const [a2, cfg] of Object.entries(SUBUNIT_OVERRIDES)) {
 
   manifest.push({
     id: `${a2.toLowerCase()}-provinces`,
-    alpha2: a2,
-    numeric,
-    label: dutchName,
+    level: 'country',
     parent,
+    clickIso: numeric,
+    label: dutchName,
     unitCount: features.length,
+    url: `/regions/${a2.toLowerCase()}-provinces.json`,
   })
 }
 

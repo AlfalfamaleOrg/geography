@@ -16,11 +16,12 @@ import regionsManifest from './regions-manifest.json'
 
 type ManifestEntry = {
   id: string
-  alpha2: string
-  numeric: string
-  label: string
+  level: 'country' | 'province'
   parent: string
+  clickIso: string
+  label: string
   unitCount: number
+  url: string
 }
 
 const manifest = regionsManifest as ManifestEntry[]
@@ -571,8 +572,11 @@ export type GameModeRef = {
   category: Category
   parent: string | null
   level: ModeLevel
-  /** Numeric ISO of the country this mode covers (only for region/country-level modes). */
-  countryIso?: string
+  /**
+   * Feature-id in de parent map die deze modus opent bij browse-click.
+   * Voor country-modi: numeric ISO; voor province-modi: het provincie-id.
+   */
+  clickIso?: string
 }
 
 const eagerModes: Record<string, GameMode> = {
@@ -592,7 +596,7 @@ function autoGenRegionDef(entry: ManifestEntry): RegionDef {
   return {
     id: entry.id,
     label: entry.label,
-    url: `/regions/${entry.alpha2.toLowerCase()}-provinces.json`,
+    url: entry.url,
     getId: (f) =>
       String(
         f.id ??
@@ -602,7 +606,7 @@ function autoGenRegionDef(entry: ManifestEntry): RegionDef {
       ),
     getName: (f) => {
       const p = f.properties as Record<string, unknown>
-      return String(p.name ?? p.name_local ?? f.id)
+      return String(p.name ?? p.statnaam ?? p.name_local ?? f.id)
     },
   }
 }
@@ -632,13 +636,13 @@ const curatedModeRefs: GameModeRef[] = [
   { id: 'south-america', label: 'Zuid-Amerika', category: 'continent', parent: 'world', level: 'continent' },
   { id: 'oceania', label: 'Oceanië', category: 'continent', parent: 'world', level: 'continent' },
   { id: 'seas', label: 'Zeeën & oceanen', category: 'continent', parent: 'world', level: 'continent' },
-  { id: 'nl-provinces', label: 'Nederland — provincies', category: 'region', parent: 'europe', level: 'country', countryIso: '528' },
-  { id: 'be-provinces', label: 'België — provincies', category: 'region', parent: 'europe', level: 'country', countryIso: '056' },
-  { id: 'de-states', label: 'Duitsland — deelstaten', category: 'region', parent: 'europe', level: 'country', countryIso: '276' },
-  { id: 'fr-regions', label: 'Frankrijk — regio’s', category: 'region', parent: 'europe', level: 'country', countryIso: '250' },
-  { id: 'es-communities', label: 'Spanje — regio’s', category: 'region', parent: 'europe', level: 'country', countryIso: '724' },
-  { id: 'usa-states', label: 'VS — staten', category: 'region', parent: 'north-america', level: 'country', countryIso: '840' },
-  { id: 'cn-provinces', label: 'China — provincies', category: 'region', parent: 'asia', level: 'country', countryIso: '156' },
+  { id: 'nl-provinces', label: 'Nederland — provincies', category: 'region', parent: 'europe', level: 'country', clickIso: '528' },
+  { id: 'be-provinces', label: 'België — provincies', category: 'region', parent: 'europe', level: 'country', clickIso: '056' },
+  { id: 'de-states', label: 'Duitsland — deelstaten', category: 'region', parent: 'europe', level: 'country', clickIso: '276' },
+  { id: 'fr-regions', label: 'Frankrijk — regio’s', category: 'region', parent: 'europe', level: 'country', clickIso: '250' },
+  { id: 'es-communities', label: 'Spanje — regio’s', category: 'region', parent: 'europe', level: 'country', clickIso: '724' },
+  { id: 'usa-states', label: 'VS — staten', category: 'region', parent: 'north-america', level: 'country', clickIso: '840' },
+  { id: 'cn-provinces', label: 'China — provincies', category: 'region', parent: 'asia', level: 'country', clickIso: '156' },
 ]
 
 const autoModeRefs: GameModeRef[] = manifest.map((e) => ({
@@ -646,15 +650,23 @@ const autoModeRefs: GameModeRef[] = manifest.map((e) => ({
   label: e.label,
   category: 'region',
   parent: e.parent,
-  level: 'country',
-  countryIso: e.numeric,
+  level: e.level,
+  clickIso: e.clickIso,
 }))
 
 export const modeRefs: GameModeRef[] = [...curatedModeRefs, ...autoModeRefs]
 
 /** Find the country-level mode for a numeric country ISO, or undefined if none exists. */
 export function findCountryMode(iso: string): GameModeRef | undefined {
-  return modeRefs.find((m) => m.level === 'country' && m.countryIso === iso)
+  return modeRefs.find((m) => m.level === 'country' && m.clickIso === iso)
+}
+
+/** Find a direct-child mode under `parentModeId` that matches a clicked feature iso. */
+export function findChildMode(
+  parentModeId: string,
+  iso: string,
+): GameModeRef | undefined {
+  return modeRefs.find((m) => m.parent === parentModeId && m.clickIso === iso)
 }
 
 /** Direct children of a mode in the navigation tree. */

@@ -3,6 +3,7 @@ import MapView, { type MapViewHandle } from './components/MapView'
 import LabelTray from './components/LabelTray'
 import {
   HELP_DRAG_LABEL,
+  findChildMode,
   findCountryMode,
   loadGameMode,
   modeChildren,
@@ -249,12 +250,16 @@ export default function App() {
 
   const handleBrowseClick = (iso: string) => {
     const currentRef = modeRefs.find((m) => m.id === mode.id)
-    if (currentRef && currentRef.level !== 'world' && currentRef.level !== 'continent') {
+    if (!currentRef) return
+    // Vanaf wereld/continent: drill naar het land waarop geklikt is.
+    if (currentRef.level === 'world' || currentRef.level === 'continent') {
+      const country = findCountryMode(iso)
+      if (country) void handleSelectModeRef(country)
       return
     }
-    const country = findCountryMode(iso)
-    if (!country) return
-    void handleSelectModeRef(country)
+    // Vanaf country/province: drill naar directe kind-modus die dit iso heeft.
+    const child = findChildMode(currentRef.id, iso)
+    if (child) void handleSelectModeRef(child)
   }
 
   const handleGoHome = async () => {
