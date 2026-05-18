@@ -90,12 +90,11 @@ const MapView = forwardRef<MapViewHandle, Props>(function MapView(
       : filtered
     const fitFc = fitFeatures.length > 0 ? fitFeatures : filtered
     const ctxFeatures = mode.contextFeatures?.features ?? []
-    // Fit op de unie van quiz-features + context, zodat de hele context zichtbaar is.
-    const fitUnion = ctxFeatures.length > 0 ? [...fitFc, ...ctxFeatures] : fitFc
     const proj = mode.createProjection()
+    // Fit op de quiz-features zelf (bv. NB). Context wordt buiten de
+    // viewport geprojecteerd en is zichtbaar als de gebruiker uitzoomt.
     const fitTarget =
-      mode.fitBbox ??
-      ({ type: 'FeatureCollection', features: fitUnion } as const)
+      mode.fitBbox ?? ({ type: 'FeatureCollection', features: fitFc } as const)
     proj.fitExtent(
       [
         [10, 10],
@@ -209,18 +208,24 @@ const MapView = forwardRef<MapViewHandle, Props>(function MapView(
     const svgEl = svgRef.current
     if (!svgEl) return
     const sel = select(svgEl)
+    const minZoom = mode.contextFeatures ? 0.3 : 1
     const z = zoom<SVGSVGElement, unknown>()
-      .scaleExtent([1, 500])
+      .scaleExtent([minZoom, 500])
       .translateExtent(
         wrapEnabled
           ? [
               [-worldWidthPx, 0],
               [worldWidthPx + WIDTH, HEIGHT],
             ]
-          : [
-              [0, 0],
-              [WIDTH, HEIGHT],
-            ],
+          : mode.contextFeatures
+            ? [
+                [-WIDTH, -HEIGHT],
+                [WIDTH * 2, HEIGHT * 2],
+              ]
+            : [
+                [0, 0],
+                [WIDTH, HEIGHT],
+              ],
       )
       .on('zoom', (event) => {
         setTransform(event.transform)
