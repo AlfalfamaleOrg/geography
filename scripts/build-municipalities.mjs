@@ -114,6 +114,57 @@ const CONFIGS = {
     },
     outId: (pid) => `be-${pid.toLowerCase()}-municipalities`,
   },
+  fr: {
+    alpha2: 'FR',
+    parentMode: 'fr-regions',
+    parentFile: 'public/regions/fr-regions.json',
+    munSrc: { type: 'geojson', path: 'scripts/data/fr-departments.geojson' },
+    munId: (f) => String(f.properties?.shapeID ?? f.id),
+    munName: (f) => String(f.properties?.shapeName ?? f.id),
+    provinceId: (f) => `fr-${f.properties?.cartodb_id}`,
+    provinceName: (f) => {
+      const overrides = {
+        'fr-8336': 'Corsica',
+        'fr-8385': 'Elzas',
+        'fr-8386': 'Lotharingen',
+      }
+      const pid = `fr-${f.properties?.cartodb_id}`
+      return overrides[pid] ?? f.properties?.name ?? String(f.id)
+    },
+    outId: (pid) => `fr-${pid.replace(/^fr-/, '')}-municipalities`,
+  },
+  de: {
+    alpha2: 'DE',
+    parentMode: 'de-states',
+    parentFile: 'public/regions/de-states.json',
+    munSrc: { type: 'geojson', path: 'scripts/data/de-kreise.geojson' },
+    munId: (f) => String(f.properties?.shapeID ?? f.id),
+    munName: (f) => String(f.properties?.shapeName ?? f.id),
+    provinceId: (f) => String(f.properties?.id ?? f.id),
+    provinceName: (f) => {
+      const overrides = {
+        'DE-BW': 'Baden-Württemberg',
+        'DE-BY': 'Beieren',
+        'DE-BE': 'Berlijn',
+        'DE-BB': 'Brandenburg',
+        'DE-HB': 'Bremen',
+        'DE-HH': 'Hamburg',
+        'DE-HE': 'Hessen',
+        'DE-MV': 'Mecklenburg-Voor-Pommeren',
+        'DE-NI': 'Nedersaksen',
+        'DE-NW': 'Noordrijn-Westfalen',
+        'DE-RP': 'Rijnland-Palts',
+        'DE-SL': 'Saarland',
+        'DE-SN': 'Saksen',
+        'DE-ST': 'Saksen-Anhalt',
+        'DE-SH': 'Sleeswijk-Holstein',
+        'DE-TH': 'Thüringen',
+      }
+      const pid = f.properties?.id
+      return overrides[pid] ?? f.properties?.name ?? String(f.id)
+    },
+    outId: (pid) => `de-${pid.replace(/^DE-/, '').toLowerCase()}-municipalities`,
+  },
 }
 
 async function loadFc(src) {
