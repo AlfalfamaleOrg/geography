@@ -12,6 +12,18 @@ import {
 import type { Feature, FeatureCollection, Geometry } from 'geojson'
 import type { GeoSphere } from 'd3-geo'
 import type { Topology } from 'topojson-specification'
+import regionsManifest from './regions-manifest.json'
+
+type ManifestEntry = {
+  id: string
+  alpha2: string
+  numeric: string
+  label: string
+  parent: string
+  unitCount: number
+}
+
+const manifest = regionsManifest as ManifestEntry[]
 
 countries.registerLocale(nlLocale)
 
@@ -576,19 +588,42 @@ const eagerModes: Record<string, GameMode> = {
 
 const cache = new Map<string, GameMode>()
 
+function autoGenRegionDef(entry: ManifestEntry): RegionDef {
+  return {
+    id: entry.id,
+    label: entry.label,
+    url: `/regions/${entry.alpha2.toLowerCase()}-provinces.json`,
+    getId: (f) =>
+      String(
+        f.id ??
+          (f.properties as Record<string, unknown>).adm1_code ??
+          (f.properties as Record<string, unknown>).name ??
+          '',
+      ),
+    getName: (f) => {
+      const p = f.properties as Record<string, unknown>
+      return String(p.name ?? p.name_local ?? f.id)
+    },
+  }
+}
+
 export async function loadGameMode(id: string): Promise<GameMode> {
   const eager = eagerModes[id]
   if (eager) return eager
   const cached = cache.get(id)
   if (cached) return cached
-  const def = regionDefs[id]
+  let def = regionDefs[id]
+  if (!def) {
+    const entry = manifest.find((e) => e.id === id)
+    if (entry) def = autoGenRegionDef(entry)
+  }
   if (!def) throw new Error(`unknown mode: ${id}`)
   const mode = await buildRegionMode(def)
   cache.set(id, mode)
   return mode
 }
 
-export const modeRefs: GameModeRef[] = [
+const curatedModeRefs: GameModeRef[] = [
   { id: 'world', label: 'Wereld', category: 'continent', parent: null, level: 'world' },
   { id: 'europe', label: 'Europa', category: 'continent', parent: 'world', level: 'continent' },
   { id: 'africa', label: 'Afrika', category: 'continent', parent: 'world', level: 'continent' },
@@ -605,6 +640,17 @@ export const modeRefs: GameModeRef[] = [
   { id: 'usa-states', label: 'VS — staten', category: 'region', parent: 'north-america', level: 'country', countryIso: '840' },
   { id: 'cn-provinces', label: 'China — provincies', category: 'region', parent: 'asia', level: 'country', countryIso: '156' },
 ]
+
+const autoModeRefs: GameModeRef[] = manifest.map((e) => ({
+  id: e.id,
+  label: e.label,
+  category: 'region',
+  parent: e.parent,
+  level: 'country',
+  countryIso: e.numeric,
+}))
+
+export const modeRefs: GameModeRef[] = [...curatedModeRefs, ...autoModeRefs]
 
 /** Find the country-level mode for a numeric country ISO, or undefined if none exists. */
 export function findCountryMode(iso: string): GameModeRef | undefined {

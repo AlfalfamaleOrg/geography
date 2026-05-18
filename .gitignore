@@ -25,3 +25,6 @@ dist-ssr
 
 # Claude Code session-local config (mag niet gecommit worden)
 .claude/
+
+# Raw Natural Earth bron-data (gedownload door scripts/build-regions.mjs)
+scripts/data/
