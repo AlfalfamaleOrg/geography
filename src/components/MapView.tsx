@@ -67,7 +67,7 @@ const MapView = forwardRef<MapViewHandle, Props>(function MapView(
     onZoomChange?.(transform.k)
   }, [transform.k, onZoomChange])
 
-  const { features, fixedPlaced, baseProjection, baseScale, worldWidthPx, wrapEnabled } = useMemo(() => {
+  const { features, contextFeatures, fixedPlaced, baseProjection, baseScale, worldWidthPx, wrapEnabled } = useMemo(() => {
     const fc = mode.sourceFeatures ?? countryFeatures
     const allowed = new Set(mode.countries.map((c) => c.iso))
     const isMultiContinent = !mode.sourceFeatures && mode.category === 'continent'
@@ -89,9 +89,13 @@ const MapView = forwardRef<MapViewHandle, Props>(function MapView(
       ? filtered.filter((f) => allowed.has(padIso(f.id)))
       : filtered
     const fitFc = fitFeatures.length > 0 ? fitFeatures : filtered
+    const ctxFeatures = mode.contextFeatures?.features ?? []
+    // Fit op de unie van quiz-features + context, zodat de hele context zichtbaar is.
+    const fitUnion = ctxFeatures.length > 0 ? [...fitFc, ...ctxFeatures] : fitFc
     const proj = mode.createProjection()
     const fitTarget =
-      mode.fitBbox ?? ({ type: 'FeatureCollection', features: fitFc } as const)
+      mode.fitBbox ??
+      ({ type: 'FeatureCollection', features: fitUnion } as const)
     proj.fitExtent(
       [
         [10, 10],
@@ -103,6 +107,7 @@ const MapView = forwardRef<MapViewHandle, Props>(function MapView(
     const worldWidthPx = wrapEnabled ? proj.scale() * 2 * Math.PI : 0
     return {
       features: filtered,
+      contextFeatures: ctxFeatures,
       fixedPlaced,
       baseProjection: proj,
       baseScale: proj.scale(),
@@ -146,6 +151,22 @@ const MapView = forwardRef<MapViewHandle, Props>(function MapView(
     () => new Map(mode.countries.map((c) => [c.iso, c.name])),
     [mode],
   )
+
+  const contextPathElements = useMemo(() => {
+    if (contextFeatures.length === 0) return null
+    return contextFeatures.map((f, i) => {
+      const d = pathGen(f) ?? ''
+      if (!d) return null
+      return (
+        <path
+          key={`ctx-${i}`}
+          d={d}
+          className="country country--fixed"
+          vectorEffect="non-scaling-stroke"
+        />
+      )
+    })
+  }, [contextFeatures, pathGen])
 
   const countryPathElements = useMemo(
     () =>
@@ -438,6 +459,9 @@ const MapView = forwardRef<MapViewHandle, Props>(function MapView(
       <g className="map__zoomable" transform={transform.toString()}>
         {wrapOffsets.map((offset) => (
           <g key={offset} transform={`translate(${offset * worldWidthPx} 0)`}>
+            {contextPathElements && (
+              <g className="map__context">{contextPathElements}</g>
+            )}
             <g className="map__countries">{countryPathElements}</g>
             <g className="map__labels">{labelElements}</g>
             <g className="map__markers">{markerElements}</g>

@@ -50,6 +50,8 @@ export type GameMode = {
   excludeFromMap: Set<string>
   interaction: Interaction
   sourceFeatures?: FeatureCollection<Geometry>
+  /** Niet-interactieve features die op de achtergrond gerenderd worden voor oriëntatie. */
+  contextFeatures?: FeatureCollection<Geometry>
 }
 
 const padIso = (id: unknown): string => {
@@ -546,11 +548,24 @@ async function fetchJson<T>(url: string): Promise<T> {
   return (await resp.json()) as T
 }
 
-async function buildRegionMode(def: RegionDef): Promise<GameMode> {
+async function buildRegionMode(
+  def: RegionDef,
+  contextDef?: RegionDef,
+): Promise<GameMode> {
   const raw = await fetchJson<Parameters<typeof buildRegionalFc>[0]>(def.url)
   let fc = buildRegionalFc(raw, def.getId)
   if (def.postProcessFc) fc = def.postProcessFc(fc)
   const list = countriesFromFc(fc, def.getName, def.nameOverrides ?? {})
+
+  let contextFc: FeatureCollection<Geometry> | undefined
+  if (contextDef) {
+    const ctxRaw = await fetchJson<Parameters<typeof buildRegionalFc>[0]>(
+      contextDef.url,
+    )
+    contextFc = buildRegionalFc(ctxRaw, contextDef.getId)
+    if (contextDef.postProcessFc) contextFc = contextDef.postProcessFc(contextFc)
+  }
+
   return {
     id: def.id,
     label: def.label,
@@ -561,6 +576,7 @@ async function buildRegionMode(def: RegionDef): Promise<GameMode> {
     excludeFromMap: new Set(),
     interaction: def.interaction ?? 'pan',
     sourceFeatures: fc,
+    contextFeatures: contextFc,
   }
 }
 
@@ -611,18 +627,28 @@ function autoGenRegionDef(entry: ManifestEntry): RegionDef {
   }
 }
 
+function findRegionDef(id: string): RegionDef | undefined {
+  const curated = regionDefs[id]
+  if (curated) return curated
+  const entry = manifest.find((e) => e.id === id)
+  if (entry) return autoGenRegionDef(entry)
+  return undefined
+}
+
 export async function loadGameMode(id: string): Promise<GameMode> {
   const eager = eagerModes[id]
   if (eager) return eager
   const cached = cache.get(id)
   if (cached) return cached
-  let def = regionDefs[id]
-  if (!def) {
-    const entry = manifest.find((e) => e.id === id)
-    if (entry) def = autoGenRegionDef(entry)
-  }
+  const def = findRegionDef(id)
   if (!def) throw new Error(`unknown mode: ${id}`)
-  const mode = await buildRegionMode(def)
+  // Voor province-modi: parent's features als context-laag (lichtgroen).
+  let contextDef: RegionDef | undefined
+  const meRef = modeRefs.find((m) => m.id === id)
+  if (meRef?.level === 'province' && meRef.parent) {
+    contextDef = findRegionDef(meRef.parent)
+  }
+  const mode = await buildRegionMode(def, contextDef)
   cache.set(id, mode)
   return mode
 }
