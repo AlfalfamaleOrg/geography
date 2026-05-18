@@ -16,6 +16,7 @@ Een drag-and-drop geografie quiz. Sleep landnamen vanuit de tray op de juiste po
 - **countries-list** voor continent-classificatie
 - **Custom GeoJSON in `src/data/`** voor NL/BE/DE/FR/ES/CN regio's (gedownload van click_that_hood, cartomap, Eurostat NUTS, isellsoap)
 - **GitHub Actions** workflow (`.github/workflows/deploy.yml`) deployt naar Cloudflare Pages bij push naar main via `cloudflare/wrangler-action@v3` (gebruikt secrets `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID`)
+- **Cloudflare D1** database `geografie-highscores` met Pages Function `functions/api/highscores.ts` voor globale leaderboard. Binding in `wrangler.toml` (binding `DB`); secret `TURNSTILE_SECRET` als Pages env var. Schema in `migrations/0001_init.sql`
 - **Custom domain** `geografie.vdhout.cc` gekoppeld aan Pages project (proxied CNAME → `geografie.pages.dev`, Universal SSL); Vite `base: '/'`
 
 ## Belangrijke architectuur
@@ -64,12 +65,18 @@ Een `GameMode` (zie `src/data/modes.ts`) beschrijft een speel-set:
 - **Drop op niet-land** (tray, zee, fixed country, eigen label): cancel, geen penalty
 - Score-uitleg wordt zichtbaar onder de Top 10 lijst.
 
-### Highscores (localStorage)
+### Highscores (Cloudflare D1)
 
-- Key `geography-test:highscores`: lijst van `{name, score, duration?, mode, date}`
-- Key `geography-test:lastName`: laatst gebruikte naam (auto-fill)
-- Schrijven alleen bij phase = 'complete' (game over). "Stop" knop forceert complete.
-- Sorteren op score desc; bij gelijke score op `duration` asc (snelste eerst). Oude entries zonder `duration` krijgen fallback van **3600 sec (1 uur)**.
+- Globale leaderboard opgeslagen in D1 database `geografie-highscores` (binding `DB`).
+- Tabel `highscores(id, name, score, duration, mode, created_at)` met index `(mode, score DESC, duration ASC)`. Schema in `migrations/0001_init.sql`.
+- API:
+  - `GET /api/highscores?mode=<id>` → top 10 voor die modus.
+  - `POST /api/highscores` body `{name, score, duration, mode}` → server valideert + insert + returnt de volledige row.
+- Frontend (`App.tsx`) fetcht bij mount en bij mode-switch via `fetchHighScores`. Bij `completeGame` POST in achtergrond; bij succes re-fetch top 10 en stash `myEntryId` voor highlight.
+- Key `geography-test:lastName`: laatst gebruikte naam blijft in localStorage (alleen UI-gemak).
+- "Stop"-knop forceert complete + POST.
+- Sorteren in SQL: `score DESC, duration ASC`. Oude entries kunnen nog ontbrekende `duration` hebben in de UI → fallback **3600 sec (1 uur)** voor weergave.
+- Anti-abuse: alleen server-side validatie (`name ≤ 30`, `score 0-100000`, `duration 0-86400`, `mode` regex `[a-z0-9-]{1,32}`). Curl-trivial te omzeilen; Turnstile als optionele follow-up als spam een probleem wordt.
 
 ### Phases
 
@@ -116,7 +123,10 @@ src/
     spain-communities.json
     china-provinces.json
 .github/workflows/deploy.yml   # Build + deploy to Cloudflare Pages
-vite.config.ts         # base: '/' (custom domain)
+functions/api/highscores.ts    # Pages Function: GET/POST naar D1 + Turnstile verify
+migrations/0001_init.sql       # D1 schema (highscores tabel + index)
+wrangler.toml                  # Pages config + D1 binding
+vite.config.ts                 # base: '/' (custom domain)
 ```
 
 ## Conventies die in deze codebase gelden

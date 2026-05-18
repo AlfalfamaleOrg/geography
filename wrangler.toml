@@ -1,0 +1,8 @@
+name = "geografie"
+compatibility_date = "2025-01-01"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "geografie-highscores"
+database_id = "5afbe659-e330-4af7-b0be-4358d731f0c3"

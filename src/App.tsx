@@ -12,6 +12,7 @@ type DragState = {
 }
 
 type HighScore = {
+  id?: number
   name: string
   score: number
   duration?: number
@@ -29,7 +30,6 @@ function formatDuration(sec: number): string {
 
 type Phase = 'start' | 'playing' | 'complete'
 
-const STORAGE_KEY = 'geography-test:highscores'
 const NAME_KEY = 'geography-test:lastName'
 const START_SCORE = 0
 const START_MULTIPLIER = 1
@@ -43,22 +43,36 @@ function shuffle<T>(arr: T[]): T[] {
   return copy
 }
 
-function loadHighScores(): HighScore[] {
+async function fetchHighScores(modeId: string): Promise<HighScore[]> {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? (parsed as HighScore[]) : []
+    const resp = await fetch(
+      `/api/highscores?mode=${encodeURIComponent(modeId)}`,
+    )
+    if (!resp.ok) return []
+    const data = (await resp.json()) as { scores?: HighScore[] }
+    return data.scores ?? []
   } catch {
     return []
   }
 }
 
-function saveHighScores(list: HighScore[]): void {
+async function postHighScore(entry: {
+  name: string
+  score: number
+  duration: number
+  mode: string
+}): Promise<HighScore | null> {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
+    const resp = await fetch('/api/highscores', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(entry),
+    })
+    if (!resp.ok) return null
+    const data = (await resp.json()) as { entry?: HighScore }
+    return data.entry ?? null
   } catch {
-    // ignore
+    return null
   }
 }
 
@@ -75,7 +89,8 @@ export default function App() {
   const [offScreenIso, setOffScreenIso] = useState<string | null>(null)
   const [score, setScore] = useState(START_SCORE)
   const [multiplier, setMultiplier] = useState(START_MULTIPLIER)
-  const [highScores, setHighScores] = useState<HighScore[]>(() => loadHighScores())
+  const [highScores, setHighScores] = useState<HighScore[]>([])
+  const [myEntryId, setMyEntryId] = useState<number | null>(null)
   const [labelsHidden, setLabelsHidden] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [startedAt, setStartedAt] = useState<number | null>(null)
@@ -88,6 +103,16 @@ export default function App() {
     const id = window.setInterval(() => setNow(Date.now()), 250)
     return () => window.clearInterval(id)
   }, [phase])
+
+  useEffect(() => {
+    let cancelled = false
+    fetchHighScores(mode.id).then((scores) => {
+      if (!cancelled) setHighScores(scores)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [mode.id])
 
   const elapsedSec =
     phase === 'playing' && startedAt
@@ -102,17 +127,23 @@ export default function App() {
   const completeGame = () => {
     const duration = startedAt ? Math.round((Date.now() - startedAt) / 1000) : 0
     setLastDuration(duration)
-    const entry: HighScore = {
+    setMyEntryId(null)
+    setPhase('complete')
+    const payload = {
       name: playerName.trim() || 'anoniem',
       score,
       duration,
       mode: mode.id,
-      date: new Date().toISOString(),
     }
-    const updated = [...highScores, entry]
-    setHighScores(updated)
-    saveHighScores(updated)
-    setPhase('complete')
+    postHighScore(payload).then(async (saved) => {
+      if (saved?.id !== undefined) {
+        setMyEntryId(saved.id)
+        const fresh = await fetchHighScores(payload.mode)
+        setHighScores(fresh)
+      } else {
+        console.error('Highscore opslaan mislukt')
+      }
+    })
   }
 
   useEffect(() => {
@@ -236,19 +267,7 @@ export default function App() {
       ? 'Sleep om de globe te draaien, scroll om te zoomen. Sleep een naam op een land.'
       : 'Scroll om te zoomen, sleep om te pannen. Sleep een naam op een land.'
 
-  const modeHighScores = useMemo(
-    () =>
-      highScores
-        .filter((h) => h.mode === mode.id)
-        .sort((a, b) => {
-          if (b.score !== a.score) return b.score - a.score
-          const da = a.duration ?? FALLBACK_DURATION
-          const db = b.duration ?? FALLBACK_DURATION
-          return da - db
-        })
-        .slice(0, 10),
-    [highScores, mode.id],
-  )
+  const modeHighScores = highScores
 
   return (
     <div
@@ -414,9 +433,7 @@ export default function App() {
           <HighScores
             entries={modeHighScores}
             modeLabel={mode.label}
-            highlightName={playerName}
-            highlightScore={score}
-            highlightDuration={lastDuration ?? undefined}
+            highlightId={myEntryId}
           />
         </section>
       )}
@@ -443,18 +460,10 @@ export default function App() {
 type HighScoresProps = {
   entries: HighScore[]
   modeLabel: string
-  highlightName?: string
-  highlightScore?: number
-  highlightDuration?: number
+  highlightId?: number | null
 }
 
-function HighScores({
-  entries,
-  modeLabel,
-  highlightName,
-  highlightScore,
-  highlightDuration,
-}: HighScoresProps) {
+function HighScores({ entries, modeLabel, highlightId }: HighScoresProps) {
   return (
     <div className="highscores">
       <h3>Top 10 — {modeLabel}</h3>
@@ -464,15 +473,13 @@ function HighScores({
         <ol className="highscores__list">
           {entries.map((e, i) => {
             const isHighlight =
-              highlightName !== undefined &&
-              e.name === highlightName &&
-              highlightScore !== undefined &&
-              e.score === highlightScore &&
-              (highlightDuration === undefined || e.duration === highlightDuration)
+              highlightId !== undefined &&
+              highlightId !== null &&
+              e.id === highlightId
             const dur = e.duration ?? FALLBACK_DURATION
             return (
               <li
-                key={`${e.date}-${i}`}
+                key={e.id ?? `${e.date}-${i}`}
                 className={`highscores__item${isHighlight ? ' highscores__item--me' : ''}`}
               >
                 <span className="highscores__rank">{i + 1}.</span>
