@@ -114,6 +114,38 @@ const CONFIGS = {
     },
     outId: (pid) => `be-${pid.toLowerCase()}-municipalities`,
   },
+  pl: {
+    alpha2: 'PL',
+    parentMode: 'pl-provinces',
+    parentFile: 'public/regions/pl-provinces.json',
+    munSrc: { type: 'geojson', path: 'scripts/data/pl-powiats.geojson' },
+    munId: (f) => String(f.properties?.shapeID ?? f.id),
+    munName: (f) => String(f.properties?.shapeName ?? f.id),
+    provinceId: (f) => String(f.id),
+    provinceName: (f) => {
+      const overrides = {
+        Silesian: 'Silezië',
+        'Lesser Poland': 'Klein-Polen',
+        Subcarpathian: 'Subkarpaten',
+        Lubuskie: 'Lubuskie',
+        Lódzkie: 'Łódź',
+        'Lódzkie ': 'Łódź',
+        Mazovia: 'Mazovië',
+        'West Pomerania': 'West-Pommeren',
+        Pomerania: 'Pommeren',
+        'Kuyavia-Pomerania': 'Koejavië-Pommeren',
+        'Warmia-Masuria': 'Warmia-Mazurië',
+        Podlasie: 'Podlachië',
+        Lublin: 'Lublin',
+        'Opole Voivodeship': 'Opole',
+        'Lower Silesian Voivodeship': 'Neder-Silezië',
+        'Greater Poland Voivodeship': 'Groot-Polen',
+      }
+      const name = f.properties?.name ?? String(f.id)
+      return overrides[name] ?? name
+    },
+    outId: (pid) => `pl-${pid.replace(/^POL-/, '').toLowerCase()}-municipalities`,
+  },
   gb: {
     alpha2: 'GB',
     parentMode: 'gb-provinces',
