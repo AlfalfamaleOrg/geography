@@ -516,6 +516,38 @@ const regionDefs: Record<string, RegionDef> = {
     getId: (f) => `cn-${(f.properties as Record<string, unknown>).cartodb_id}`,
     getName: (f) => String((f.properties as Record<string, unknown>).name ?? f.id),
   },
+  'it-regions': {
+    id: 'it-regions',
+    label: 'Italië — regio’s',
+    url: '/regions/it-regions.json',
+    getId: (f) => String(f.id ?? (f.properties as Record<string, unknown>).shapeID),
+    getName: (f) => {
+      const overrides: Record<string, string> = {
+        Piemonte: 'Piëmont',
+        Lombardia: 'Lombardije',
+        'Trentino-Alto Adige': 'Trentino-Zuid-Tirol',
+        Veneto: 'Veneto',
+        'Friuli-Venezia Giulia': 'Friuli-Venezia Giulia',
+        Liguria: 'Ligurië',
+        'Emilia-Romagna': 'Emilia-Romagna',
+        Toscana: 'Toscane',
+        Umbria: 'Umbrië',
+        Marche: 'Marche',
+        Lazio: 'Latium',
+        Abruzzo: 'Abruzzen',
+        Molise: 'Molise',
+        Campania: 'Campanië',
+        Puglia: 'Apulië',
+        Basilicata: 'Basilicata',
+        Calabria: 'Calabrië',
+        Sicilia: 'Sicilië',
+        Sardegna: 'Sardinië',
+        "Valle d'Aosta": 'Valle d’Aosta',
+      }
+      const name = (f.properties as { name?: string } | null)?.name ?? String(f.id)
+      return overrides[name] ?? name
+    },
+  },
   'usa-states': {
     id: 'usa-states',
     label: 'VS — staten',
@@ -669,6 +701,7 @@ const curatedModeRefs: GameModeRef[] = [
   { id: 'es-communities', label: 'Spanje — regio’s', category: 'region', parent: 'europe', level: 'country', clickIso: '724' },
   { id: 'usa-states', label: 'VS — staten', category: 'region', parent: 'north-america', level: 'country', clickIso: '840' },
   { id: 'cn-provinces', label: 'China — provincies', category: 'region', parent: 'asia', level: 'country', clickIso: '156' },
+  { id: 'it-regions', label: 'Italië — regio’s', category: 'region', parent: 'europe', level: 'country', clickIso: '380' },
 ]
 
 const autoModeRefs: GameModeRef[] = manifest.map((e) => ({

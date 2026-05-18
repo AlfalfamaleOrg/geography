@@ -114,6 +114,37 @@ const CONFIGS = {
     },
     outId: (pid) => `be-${pid.toLowerCase()}-municipalities`,
   },
+  it: {
+    alpha2: 'IT',
+    parentMode: 'it-regions',
+    parentFile: 'public/regions/it-regions.json',
+    munSrc: { type: 'geojson', path: 'scripts/data/it-provincie.geojson' },
+    munId: (f) => String(f.properties?.shapeID ?? f.id),
+    munName: (f) => String(f.properties?.shapeName ?? f.id),
+    provinceId: (f) => String(f.id ?? f.properties?.shapeID),
+    provinceName: (f) => {
+      const overrides = {
+        Piemonte: 'Piëmont',
+        Lombardia: 'Lombardije',
+        'Trentino-Alto Adige': 'Trentino-Zuid-Tirol',
+        Veneto: 'Veneto',
+        Liguria: 'Ligurië',
+        Toscana: 'Toscane',
+        Umbria: 'Umbrië',
+        Lazio: 'Latium',
+        Abruzzo: 'Abruzzen',
+        Campania: 'Campanië',
+        Puglia: 'Apulië',
+        Calabria: 'Calabrië',
+        Sicilia: 'Sicilië',
+        Sardegna: 'Sardinië',
+        "Valle d'Aosta": 'Valle d’Aosta',
+      }
+      const name = f.properties?.name ?? String(f.id)
+      return overrides[name] ?? name
+    },
+    outId: (pid) => `it-${pid.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()}-municipalities`,
+  },
   es: {
     alpha2: 'ES',
     parentMode: 'es-communities',
