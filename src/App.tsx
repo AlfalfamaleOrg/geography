@@ -5,6 +5,7 @@ import {
   HELP_DRAG_LABEL,
   findCountryMode,
   loadGameMode,
+  modeChildren,
   modeRefs,
   worldMode,
   type Country,
@@ -404,6 +405,7 @@ export default function App() {
         <section className="screen screen--start">
           <div className="start__nav">
             <Breadcrumb modeId={mode.id} onNavigate={handleNavigateModeId} />
+            <ChildrenJumpBar modeId={mode.id} onNavigate={handleNavigateModeId} />
             <div className="start__map">
               <MapView
                 mode={mode}
@@ -507,6 +509,30 @@ export default function App() {
           </div>
         </>
       )}
+    </div>
+  )
+}
+
+type JumpBarProps = {
+  modeId: string
+  onNavigate: (id: string) => void
+}
+
+function ChildrenJumpBar({ modeId, onNavigate }: JumpBarProps) {
+  const children = modeChildren(modeId)
+  if (children.length === 0) return null
+  return (
+    <div className="jumpbar" aria-label="Snelle navigatie">
+      {children.map((c) => (
+        <button
+          key={c.id}
+          type="button"
+          className="jumpbar__btn"
+          onClick={() => onNavigate(c.id)}
+        >
+          {c.label}
+        </button>
+      ))}
     </div>
   )
 }
