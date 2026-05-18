@@ -18,26 +18,47 @@ countries.registerLocale(nlLocale)
 const SRC = 'scripts/data/ne_10m_admin_1.geojson'
 const SRC_URL =
   'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_1_states_provinces.geojson'
+const SUBUNITS_SRC = 'scripts/data/ne_10m_admin_0_map_subunits.geojson'
+const SUBUNITS_URL =
+  'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_admin_0_map_subunits.geojson'
 const OUT_DIR = 'public/regions'
 
 // Download bron-data als hij nog niet lokaal staat.
-try {
-  await fs.access(SRC)
-} catch {
-  console.log(`fetching ${SRC_URL}`)
-  await fs.mkdir(path.dirname(SRC), { recursive: true })
-  const resp = await fetch(SRC_URL)
-  if (!resp.ok) throw new Error(`download failed: ${resp.status}`)
-  await fs.writeFile(SRC, Buffer.from(await resp.arrayBuffer()))
+async function ensureFile(file, url) {
+  try {
+    await fs.access(file)
+  } catch {
+    console.log(`fetching ${url}`)
+    await fs.mkdir(path.dirname(file), { recursive: true })
+    const resp = await fetch(url)
+    if (!resp.ok) throw new Error(`download failed: ${resp.status}`)
+    await fs.writeFile(file, Buffer.from(await resp.arrayBuffer()))
+  }
 }
+await ensureFile(SRC, SRC_URL)
+await ensureFile(SUBUNITS_SRC, SUBUNITS_URL)
 
 // Curated landen — sla deze over (eigen GeoJSON + namen).
 // Alpha-2 → curated mode id.
 const CURATED = new Set(['NL', 'BE', 'DE', 'FR', 'ES', 'CN', 'US'])
 
+// Landen die we via NE map_subunits opbouwen i.p.v. admin_1.
+// Voor GB: Engeland/Wales/Schotland/Noord-Ierland als 4 features.
+const SUBUNIT_OVERRIDES = {
+  GB: {
+    su_codes: new Set(['ENG', 'WLS', 'SCT', 'NIR']),
+    nameOverrides: {
+      ENG: 'Engeland',
+      WLS: 'Wales',
+      SCT: 'Schotland',
+      NIR: 'Noord-Ierland',
+    },
+  },
+}
+
 // Maximum aantal admin-1 features. Boven dit aantal wordt het land
 // niet als spelmodus aangemaakt (te veel om in één quiz te plaatsen).
-const MAX_UNITS = 60
+const MAX_UNITS = 80
 
 const CONTINENT_TO_MODE = {
   EU: 'europe',
@@ -67,6 +88,7 @@ const skipped = []
 
 for (const [a2, features] of byA2) {
   if (CURATED.has(a2)) continue
+  if (SUBUNIT_OVERRIDES[a2]) continue // afgehandeld in subunit-pass
   if (features.length > MAX_UNITS) {
     skipped.push({ a2, count: features.length, reason: 'too many' })
     continue
@@ -102,6 +124,57 @@ for (const [a2, features] of byA2) {
     },
     geometry: f.geometry,
   }))
+
+  const fc = { type: 'FeatureCollection', features: slimFeatures }
+  const fname = `${a2.toLowerCase()}-provinces.json`
+  await fs.writeFile(path.join(OUT_DIR, fname), JSON.stringify(fc))
+
+  manifest.push({
+    id: `${a2.toLowerCase()}-provinces`,
+    alpha2: a2,
+    numeric,
+    label: dutchName,
+    parent,
+    unitCount: features.length,
+  })
+}
+
+// Subunit-overrides: voor specifieke landen gebruiken we ne_10m_admin_0_map_subunits
+// i.p.v. admin_1 (bv. GB = Engeland/Wales/Schotland/Noord-Ierland).
+const subunitRaw = JSON.parse(await fs.readFile(SUBUNITS_SRC, 'utf8'))
+for (const [a2, cfg] of Object.entries(SUBUNIT_OVERRIDES)) {
+  const features = subunitRaw.features.filter((f) => {
+    const su = f.properties.SU_A3 ?? f.properties.su_a3
+    return cfg.su_codes.has(su)
+  })
+  if (features.length === 0) {
+    console.warn(`subunit override ${a2}: 0 features matched`)
+    continue
+  }
+  const numeric = countries.alpha2ToNumeric(a2)
+  if (!numeric) {
+    console.warn(`subunit override ${a2}: no numeric ISO`)
+    continue
+  }
+  const dutchName =
+    countries.getName(a2, 'nl', { select: 'alias' }) ??
+    countries.getName(a2, 'nl') ??
+    a2
+  const info = cl[a2]
+  const continent = info?.continent ?? 'AN'
+  const parent = CONTINENT_TO_MODE[continent] ?? 'world'
+
+  const slimFeatures = features.map((f) => {
+    const p = f.properties
+    const code = p.SU_A3 ?? p.su_a3
+    const name = cfg.nameOverrides[code] ?? p.SUBUNIT ?? p.subunit ?? code
+    return {
+      type: 'Feature',
+      id: code,
+      properties: { name },
+      geometry: f.geometry,
+    }
+  })
 
   const fc = { type: 'FeatureCollection', features: slimFeatures }
   const fname = `${a2.toLowerCase()}-provinces.json`
