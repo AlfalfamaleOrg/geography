@@ -114,6 +114,17 @@ const CONFIGS = {
     },
     outId: (pid) => `be-${pid.toLowerCase()}-municipalities`,
   },
+  ar: {
+    alpha2: 'AR',
+    parentMode: 'ar-provinces',
+    parentFile: 'public/regions/ar-provinces.json',
+    munSrc: { type: 'geojson', path: 'scripts/data/ar-partidos.geojson' },
+    munId: (f) => String(f.properties?.shapeID ?? f.id),
+    munName: (f) => String(f.properties?.shapeName ?? f.id),
+    provinceId: (f) => String(f.id),
+    provinceName: (f) => f.properties?.name ?? String(f.id),
+    outId: (pid) => `ar-${pid.replace(/^ARG-/, '').toLowerCase()}-municipalities`,
+  },
   in: {
     alpha2: 'IN',
     parentMode: 'in-provinces',
